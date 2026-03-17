@@ -1,0 +1,8 @@
+{
+  "world_address": "0x06d1f1bc162ec84e592e4e2e3a69978440f8611224a61b88d8855ff4718c3aca",
+  "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia",
+  "chain_id": "SN_SEPOLIA",
+  "deployed_block": "7712551",
+  "deployed_at": "2026-03-16T21:05:09Z",
+  "account_address": "0x06b14d3c501353277cE408F0b2c4199f1450a4cC58e7114a628754De04F3782E"
+}

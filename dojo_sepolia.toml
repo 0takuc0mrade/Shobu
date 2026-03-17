@@ -1,0 +1,17 @@
+[world]
+name = "shobu"
+description = "Decentralized betting and escrow protocol for Dojo games"
+seed = "shobu_sepolia_20260316_2"
+
+[namespace]
+default = "shobu"
+
+[env]
+rpc_url = "https://api.cartridge.gg/x/starknet/sepolia"
+# account_address = "" # env: DOJO_ACCOUNT_ADDRESS
+# private_key = ""     # env: DOJO_PRIVATE_KEY
+world_address = "0x06d1f1bc162ec84e592e4e2e3a69978440f8611224a61b88d8855ff4718c3aca"
+world_block = 7712551
+
+[writers]
+"shobu" = ["shobu-Escrow"]

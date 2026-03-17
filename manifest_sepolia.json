@@ -1,0 +1,3506 @@
+{
+  "world": {
+    "class_hash": "0x381899226c066a0262f45d6ab815f89818e0874ec3e66cdf72b5e92d8db4680",
+    "address": "0x6d1f1bc162ec84e592e4e2e3a69978440f8611224a61b88d8855ff4718c3aca",
+    "seed": "shobu_sepolia_20260316_2",
+    "name": "shobu",
+    "entrypoints": [
+      "uuid",
+      "set_metadata",
+      "register_namespace",
+      "register_event",
+      "register_model",
+      "register_contract",
+      "register_external_contract",
+      "register_library",
+      "init_contract",
+      "upgrade_event",
+      "upgrade_model",
+      "upgrade_contract",
+      "upgrade_external_contract",
+      "emit_event",
+      "emit_events",
+      "set_entity",
+      "set_entities",
+      "delete_entity",
+      "delete_entities",
+      "grant_owner",
+      "revoke_owner",
+      "grant_writer",
+      "revoke_writer",
+      "upgrade"
+    ]
+  },
+  "contracts": [
+    {
+      "address": "0x524aa3710ce681af6d8ab570f68065d52f865c954dd01ba7e92e76d49446538",
+      "class_hash": "0x4932acd3982ee73aa88a677eb6df8e7560be71d6756ea2177c8819b331759ca",
+      "init_calldata": [],
+      "tag": "shobu-Escrow",
+      "selector": "0x42b9a1246483c0962a8968cf3598dc50b00ee51fd7258b98762f1c071279fd0",
+      "systems": [
+        "dojo_init",
+        "create_pool",
+        "place_bet",
+        "settle_pool",
+        "claim_winnings",
+        "cancel_pool",
+        "configure_protocol",
+        "claim_protocol_fees",
+        "create_egs_pool",
+        "configure_denshokan",
+        "upgrade"
+      ]
+    }
+  ],
+  "libraries": [],
+  "models": [
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "predicted_winner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "claimed",
+          "type": "core::bool",
+          "key": false
+        },
+        {
+          "name": "placed_at",
+          "type": "core::integer::u64",
+          "key": false
+        }
+      ],
+      "class_hash": "0x2693d3343a806a9305ffe87d415f0ce28d7db6c4bab3c3b03e32c54c9382375",
+      "tag": "shobu-Bet",
+      "selector": "0x769bc044b9e4a94d7b0efc813b53b0015559fd396581242183f02702f9c4b0c"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "status",
+          "type": "core::integer::u8",
+          "key": false
+        },
+        {
+          "name": "settlement_mode",
+          "type": "core::integer::u8",
+          "key": false
+        },
+        {
+          "name": "egs_token_id_p1",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "egs_token_id_p2",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "total_on_p1",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "total_on_p2",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "bettor_count_p1",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "bettor_count_p2",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "winning_player",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "winning_total",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "distributable_amount",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "claimed_amount",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "claimed_winner_count",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "protocol_fee_amount",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "deadline",
+          "type": "core::integer::u64",
+          "key": false
+        },
+        {
+          "name": "player_1",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "player_2",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        }
+      ],
+      "class_hash": "0x409bcfbef2c9fef466b6c90af4d225e2fed6bca3a2f0099d2fedb49a1bf85e3",
+      "tag": "shobu-BettingPool",
+      "selector": "0x2aa2e8d13891a21bd4b562223dc33f6ecc57b4a8d42a37d88cc29f98ec4265"
+    },
+    {
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8",
+          "key": true
+        },
+        {
+          "name": "token_contract",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x680015c06a7c65426c305784877ca37c7dd3a1e071e9beaf37b7bbd5540e3e",
+      "tag": "shobu-DenshokanConfig",
+      "selector": "0x78a8ad5304c9186b4dfe4fa38d9aa5773029bbf088fe0f925031102c8f73618"
+    },
+    {
+      "members": [
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "accumulated",
+          "type": "core::integer::u128",
+          "key": false
+        }
+      ],
+      "class_hash": "0x19211bef9699015228e5932abfccc52029c387498d385ee99aa46433ddb1043",
+      "tag": "shobu-FeeVault",
+      "selector": "0x5e4db2a132a03bb56e87de971e1286ae56ee5e37aab4c45e4617ec10627dac9"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "implied_prob_p1",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "implied_prob_p2",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "last_updated",
+          "type": "core::integer::u64",
+          "key": false
+        }
+      ],
+      "class_hash": "0xe75991e074a8aa1838c0d484f50bb0a3d8bc4e867118fe39c269ade37a44e6",
+      "tag": "shobu-OddsSnapshot",
+      "selector": "0x786d1ac2e1f527a3ca45a6de05b0930f712bcd5a8a426a9ef675855b9437230"
+    },
+    {
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8",
+          "key": true
+        },
+        {
+          "name": "count",
+          "type": "core::integer::u32",
+          "key": false
+        }
+      ],
+      "class_hash": "0x255fcd12eac2ad25537f4ef6ca4a0e557a18912512ad361ae7446b548c0188c",
+      "tag": "shobu-PoolCounter",
+      "selector": "0x1623b0cb2125d138ace94ca6ec63b84e72125fa99ec84b39df5863e6d21da38"
+    },
+    {
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8",
+          "key": true
+        },
+        {
+          "name": "fee_bps",
+          "type": "core::integer::u16",
+          "key": false
+        },
+        {
+          "name": "fee_recipient",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "admin",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "paused",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x331250abd9592723a785c6702b25cab01e8eaad255fb20fca7e42dd683d6b9f",
+      "tag": "shobu-ProtocolConfig",
+      "selector": "0xb1881c39e0da941bb90a0ecd34f5676c8826a555d7fb82bb33400918257aa7"
+    }
+  ],
+  "events": [
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "predicted_winner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "total_on_p1",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "total_on_p2",
+          "type": "core::integer::u128",
+          "key": false
+        }
+      ],
+      "class_hash": "0x13599e0392d3f19d3fa9ccca53268362c1bcc42ac51d412511aae0923540995",
+      "tag": "shobu-bet_placed",
+      "selector": "0x2feb5ae2b6ff0046ec43a0ab96be0b9c9f475d2d17465f9e7fb7a4a0f1bddf1"
+    },
+    {
+      "members": [
+        {
+          "name": "token_contract",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x202f1a1ea8c58c3b1718d9eefd506f81ba334e62396b5921ad3c3c871748774",
+      "tag": "shobu-denshokan_configured",
+      "selector": "0x6cc1daff6c6cad3876a8d752136bafcbf30b1ca5eb6d7a69900378e4fde5169"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "egs_token_id_p1",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "egs_token_id_p2",
+          "type": "core::felt252",
+          "key": false
+        }
+      ],
+      "class_hash": "0x4725b357e0bc0fe15a3000fde4b27ca2ced4dc4ecd3678b52c76930247e588f",
+      "tag": "shobu-egs_pool_created",
+      "selector": "0x6017ab89d728a9bc8a45c4d7e60302ea9d37e79b2b9d9ecf75b1a3cd95b3818"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "cancelled_by",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        }
+      ],
+      "class_hash": "0x181af9d10a90dde9893957df89ce0aa8e6c638a8aca1491dfab6aa0da14ff24",
+      "tag": "shobu-pool_cancelled_event",
+      "selector": "0x73ece2181100b7ff7bcd52f283c3a561c2201007afadeffeb5f9c8cbcbf021e"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32",
+          "key": false
+        },
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "deadline",
+          "type": "core::integer::u64",
+          "key": false
+        }
+      ],
+      "class_hash": "0x79c84fe58fc2329a6378fe5ad26c98adbc2f2fc25b4164c1618428a03564ab5",
+      "tag": "shobu-pool_created",
+      "selector": "0x34d73873329947d537a760e0bd48c6495913cac50c3136ddc059edd755f53e9"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "winner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "winning_total",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "distributable_amount",
+          "type": "core::integer::u128",
+          "key": false
+        },
+        {
+          "name": "protocol_fee_amount",
+          "type": "core::integer::u128",
+          "key": false
+        }
+      ],
+      "class_hash": "0x6a253f3e4cc98a8428fd8d4cee1ac6076b03ba319f55d10a6bd0888a35f7068",
+      "tag": "shobu-pool_settled_event",
+      "selector": "0xff0e6bc8f18e0f68fa0f462928fb31b731714a93edc0e417fce3dcfb93bfff"
+    },
+    {
+      "members": [
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "recipient",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128",
+          "key": false
+        }
+      ],
+      "class_hash": "0x12c9dadf1c07f61f60b2cbc0c9fda4ecacc0cd7627004afb28c1ffc43bfded1",
+      "tag": "shobu-protocol_fee_claimed",
+      "selector": "0x57aaa691ee68694eebf6236dee3def4498d9a7c617ff10029d06b1ee1b4ae65"
+    },
+    {
+      "members": [
+        {
+          "name": "fee_recipient",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "fee_bps",
+          "type": "core::integer::u16",
+          "key": false
+        }
+      ],
+      "class_hash": "0x42f819dc66d7f0e1138704e1696c6a4aaba2a9361603a3bf8577a89c689c9cb",
+      "tag": "shobu-protocol_fee_configured",
+      "selector": "0x9696a2ec0ae78e8e8cf4795cd12245b750534191af153de7803c0399fe066f"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128",
+          "key": false
+        }
+      ],
+      "class_hash": "0x4c8b9d6fa299cf734f67dd91c9de10a8d859f3250df474958ba82a163436b62",
+      "tag": "shobu-winnings_claimed",
+      "selector": "0x130d05449c15ccabac3f8f25d5acd03cd1de8d00d461892edd1f71c4a9da745"
+    }
+  ],
+  "external_contracts": [],
+  "abis": [
+    {
+      "type": "constructor",
+      "name": "constructor",
+      "inputs": []
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<(core::felt252, dojo::meta::introspect::Ty)>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<(core::felt252, dojo::meta::introspect::Ty)>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::array::Span::<core::felt252>>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::array::Span::<core::felt252>>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::felt252>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::felt252>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::integer::u8>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::integer::u8>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<dojo::meta::introspect::Member>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<dojo::meta::introspect::Member>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<dojo::meta::introspect::Ty>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<dojo::meta::introspect::Ty>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<dojo::meta::layout::FieldLayout>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<dojo::meta::layout::FieldLayout>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<dojo::meta::layout::Layout>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<dojo::meta::layout::Layout>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<dojo::model::definition::ModelIndex>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<dojo::model::definition::ModelIndex>"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::bool",
+      "variants": [
+        {
+          "name": "False",
+          "type": "()"
+        },
+        {
+          "name": "True",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::byte_array::ByteArray",
+      "members": [
+        {
+          "name": "data",
+          "type": "core::array::Array::<core::bytes_31::bytes31>"
+        },
+        {
+          "name": "pending_word",
+          "type": "core::felt252"
+        },
+        {
+          "name": "pending_word_len",
+          "type": "core::internal::bounded_int::BoundedInt::<0, 30>"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::option::Option::<core::integer::u32>",
+      "variants": [
+        {
+          "name": "Some",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "None",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::contract::components::upgradeable::IUpgradeable",
+      "items": [
+        {
+          "type": "function",
+          "name": "upgrade",
+          "inputs": [
+            {
+              "name": "new_class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::contract::components::upgradeable::upgradeable_cpt::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "Upgraded",
+          "type": "dojo::contract::components::upgradeable::upgradeable_cpt::Upgraded",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::contract::components::upgradeable::upgradeable_cpt::Upgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::contract::components::world_provider::IWorldProvider",
+      "items": [
+        {
+          "type": "function",
+          "name": "world_dispatcher",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "dojo::world::iworld::IWorldDispatcher"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::contract::components::world_provider::world_provider_cpt::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "interface",
+      "name": "dojo::contract::interface::IContract",
+      "items": []
+    },
+    {
+      "type": "struct",
+      "name": "dojo::event::event::EventDef",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "layout",
+          "type": "dojo::meta::layout::Layout"
+        },
+        {
+          "name": "schema",
+          "type": "dojo::meta::introspect::Struct"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::event::interface::IEvent",
+      "items": [
+        {
+          "type": "function",
+          "name": "definition",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "dojo::event::event::EventDef"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::meta::interface::IDeployedResource",
+      "items": [
+        {
+          "type": "function",
+          "name": "dojo_name",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::byte_array::ByteArray"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::meta::interface::IStoredResource",
+      "items": [
+        {
+          "type": "function",
+          "name": "layout",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "schema",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "dojo::meta::introspect::Struct"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::meta::introspect::Enum",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::felt252"
+        },
+        {
+          "name": "attrs",
+          "type": "core::array::Span::<core::felt252>"
+        },
+        {
+          "name": "children",
+          "type": "core::array::Span::<(core::felt252, dojo::meta::introspect::Ty)>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::meta::introspect::Member",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::felt252"
+        },
+        {
+          "name": "attrs",
+          "type": "core::array::Span::<core::felt252>"
+        },
+        {
+          "name": "ty",
+          "type": "dojo::meta::introspect::Ty"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::meta::introspect::Struct",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::felt252"
+        },
+        {
+          "name": "attrs",
+          "type": "core::array::Span::<core::felt252>"
+        },
+        {
+          "name": "children",
+          "type": "core::array::Span::<dojo::meta::introspect::Member>"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "dojo::meta::introspect::Ty",
+      "variants": [
+        {
+          "name": "Primitive",
+          "type": "core::felt252"
+        },
+        {
+          "name": "Struct",
+          "type": "dojo::meta::introspect::Struct"
+        },
+        {
+          "name": "Enum",
+          "type": "dojo::meta::introspect::Enum"
+        },
+        {
+          "name": "Tuple",
+          "type": "core::array::Span::<dojo::meta::introspect::Ty>"
+        },
+        {
+          "name": "Array",
+          "type": "core::array::Span::<dojo::meta::introspect::Ty>"
+        },
+        {
+          "name": "ByteArray",
+          "type": "()"
+        },
+        {
+          "name": "FixedArray",
+          "type": "(core::array::Span::<dojo::meta::introspect::Ty>, core::integer::u32)"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::meta::layout::FieldLayout",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252"
+        },
+        {
+          "name": "layout",
+          "type": "dojo::meta::layout::Layout"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "dojo::meta::layout::Layout",
+      "variants": [
+        {
+          "name": "Fixed",
+          "type": "core::array::Span::<core::integer::u8>"
+        },
+        {
+          "name": "Struct",
+          "type": "core::array::Span::<dojo::meta::layout::FieldLayout>"
+        },
+        {
+          "name": "Tuple",
+          "type": "core::array::Span::<dojo::meta::layout::Layout>"
+        },
+        {
+          "name": "Array",
+          "type": "core::array::Span::<dojo::meta::layout::Layout>"
+        },
+        {
+          "name": "ByteArray",
+          "type": "()"
+        },
+        {
+          "name": "Enum",
+          "type": "core::array::Span::<dojo::meta::layout::FieldLayout>"
+        },
+        {
+          "name": "FixedArray",
+          "type": "(core::array::Span::<dojo::meta::layout::Layout>, core::integer::u32)"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::model::definition::ModelDef",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "layout",
+          "type": "dojo::meta::layout::Layout"
+        },
+        {
+          "name": "schema",
+          "type": "dojo::meta::introspect::Struct"
+        },
+        {
+          "name": "packed_size",
+          "type": "core::option::Option::<core::integer::u32>"
+        },
+        {
+          "name": "unpacked_size",
+          "type": "core::option::Option::<core::integer::u32>"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "dojo::model::definition::ModelIndex",
+      "variants": [
+        {
+          "name": "Keys",
+          "type": "core::array::Span::<core::felt252>"
+        },
+        {
+          "name": "Id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "MemberId",
+          "type": "(core::felt252, core::felt252)"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::model::interface::IModel",
+      "items": [
+        {
+          "type": "function",
+          "name": "unpacked_size",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::option::Option::<core::integer::u32>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "packed_size",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::option::Option::<core::integer::u32>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "definition",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "dojo::model::definition::ModelDef"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "use_legacy_storage",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::model::metadata::ResourceMetadata",
+      "members": [
+        {
+          "name": "resource_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "metadata_uri",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "metadata_hash",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::world::iworld::IUpgradeableWorld",
+      "items": [
+        {
+          "type": "function",
+          "name": "upgrade",
+          "inputs": [
+            {
+              "name": "new_class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "dojo::world::iworld::IWorld",
+      "items": [
+        {
+          "type": "function",
+          "name": "resource",
+          "inputs": [
+            {
+              "name": "selector",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "dojo::world::resource::Resource"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "world_version",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::felt252"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "uuid",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::integer::u32"
+            }
+          ],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "metadata",
+          "inputs": [
+            {
+              "name": "resource_selector",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "dojo::model::metadata::ResourceMetadata"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "set_metadata",
+          "inputs": [
+            {
+              "name": "metadata",
+              "type": "dojo::model::metadata::ResourceMetadata"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "register_namespace",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "register_event",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "register_model",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "register_contract",
+          "inputs": [
+            {
+              "name": "salt",
+              "type": "core::felt252"
+            },
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "register_external_contract",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "contract_name",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "instance_name",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "contract_address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "block_number",
+              "type": "core::integer::u64"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "register_library",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            },
+            {
+              "name": "name",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "version",
+              "type": "core::byte_array::ByteArray"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "init_contract",
+          "inputs": [
+            {
+              "name": "selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "init_calldata",
+              "type": "core::array::Span::<core::felt252>"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "upgrade_event",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "upgrade_model",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "upgrade_contract",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "upgrade_external_contract",
+          "inputs": [
+            {
+              "name": "namespace",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "instance_name",
+              "type": "core::byte_array::ByteArray"
+            },
+            {
+              "name": "contract_address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "block_number",
+              "type": "core::integer::u64"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "emit_event",
+          "inputs": [
+            {
+              "name": "event_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "keys",
+              "type": "core::array::Span::<core::felt252>"
+            },
+            {
+              "name": "values",
+              "type": "core::array::Span::<core::felt252>"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "emit_events",
+          "inputs": [
+            {
+              "name": "event_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "keys",
+              "type": "core::array::Span::<core::array::Span::<core::felt252>>"
+            },
+            {
+              "name": "values",
+              "type": "core::array::Span::<core::array::Span::<core::felt252>>"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "entity",
+          "inputs": [
+            {
+              "name": "model_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "index",
+              "type": "dojo::model::definition::ModelIndex"
+            },
+            {
+              "name": "layout",
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::array::Span::<core::felt252>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "entities",
+          "inputs": [
+            {
+              "name": "model_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "indexes",
+              "type": "core::array::Span::<dojo::model::definition::ModelIndex>"
+            },
+            {
+              "name": "layout",
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::array::Span::<core::array::Span::<core::felt252>>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "set_entity",
+          "inputs": [
+            {
+              "name": "model_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "index",
+              "type": "dojo::model::definition::ModelIndex"
+            },
+            {
+              "name": "values",
+              "type": "core::array::Span::<core::felt252>"
+            },
+            {
+              "name": "layout",
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "set_entities",
+          "inputs": [
+            {
+              "name": "model_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "indexes",
+              "type": "core::array::Span::<dojo::model::definition::ModelIndex>"
+            },
+            {
+              "name": "values",
+              "type": "core::array::Span::<core::array::Span::<core::felt252>>"
+            },
+            {
+              "name": "layout",
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "delete_entity",
+          "inputs": [
+            {
+              "name": "model_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "index",
+              "type": "dojo::model::definition::ModelIndex"
+            },
+            {
+              "name": "layout",
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "delete_entities",
+          "inputs": [
+            {
+              "name": "model_selector",
+              "type": "core::felt252"
+            },
+            {
+              "name": "indexes",
+              "type": "core::array::Span::<dojo::model::definition::ModelIndex>"
+            },
+            {
+              "name": "layout",
+              "type": "dojo::meta::layout::Layout"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "is_owner",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            },
+            {
+              "name": "address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "grant_owner",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            },
+            {
+              "name": "address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "revoke_owner",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            },
+            {
+              "name": "address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "owners_count",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::integer::u64"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "is_writer",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            },
+            {
+              "name": "contract",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "grant_writer",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            },
+            {
+              "name": "contract",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "revoke_writer",
+          "inputs": [
+            {
+              "name": "resource",
+              "type": "core::felt252"
+            },
+            {
+              "name": "contract",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "dojo::world::iworld::IWorldDispatcher",
+      "members": [
+        {
+          "name": "contract_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "dojo::world::resource::Resource",
+      "variants": [
+        {
+          "name": "Model",
+          "type": "(core::starknet::contract_address::ContractAddress, core::felt252)"
+        },
+        {
+          "name": "Event",
+          "type": "(core::starknet::contract_address::ContractAddress, core::felt252)"
+        },
+        {
+          "name": "Contract",
+          "type": "(core::starknet::contract_address::ContractAddress, core::felt252)"
+        },
+        {
+          "name": "Namespace",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "World",
+          "type": "()"
+        },
+        {
+          "name": "Unregistered",
+          "type": "()"
+        },
+        {
+          "name": "Library",
+          "type": "(core::starknet::class_hash::ClassHash, core::felt252)"
+        },
+        {
+          "name": "ExternalContract",
+          "type": "(core::starknet::contract_address::ContractAddress, core::felt252)"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ContractInitialized",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "init_calldata",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ContractRegistered",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "salt",
+          "type": "core::felt252",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ContractUpgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "WorldSpawned",
+          "type": "dojo::world::world_contract::world::WorldSpawned",
+          "kind": "nested"
+        },
+        {
+          "name": "WorldUpgraded",
+          "type": "dojo::world::world_contract::world::WorldUpgraded",
+          "kind": "nested"
+        },
+        {
+          "name": "NamespaceRegistered",
+          "type": "dojo::world::world_contract::world::NamespaceRegistered",
+          "kind": "nested"
+        },
+        {
+          "name": "ModelRegistered",
+          "type": "dojo::world::world_contract::world::ModelRegistered",
+          "kind": "nested"
+        },
+        {
+          "name": "EventRegistered",
+          "type": "dojo::world::world_contract::world::EventRegistered",
+          "kind": "nested"
+        },
+        {
+          "name": "ContractRegistered",
+          "type": "dojo::world::world_contract::world::ContractRegistered",
+          "kind": "nested"
+        },
+        {
+          "name": "ExternalContractRegistered",
+          "type": "dojo::world::world_contract::world::ExternalContractRegistered",
+          "kind": "nested"
+        },
+        {
+          "name": "ExternalContractUpgraded",
+          "type": "dojo::world::world_contract::world::ExternalContractUpgraded",
+          "kind": "nested"
+        },
+        {
+          "name": "ModelUpgraded",
+          "type": "dojo::world::world_contract::world::ModelUpgraded",
+          "kind": "nested"
+        },
+        {
+          "name": "EventUpgraded",
+          "type": "dojo::world::world_contract::world::EventUpgraded",
+          "kind": "nested"
+        },
+        {
+          "name": "ContractUpgraded",
+          "type": "dojo::world::world_contract::world::ContractUpgraded",
+          "kind": "nested"
+        },
+        {
+          "name": "ContractInitialized",
+          "type": "dojo::world::world_contract::world::ContractInitialized",
+          "kind": "nested"
+        },
+        {
+          "name": "LibraryRegistered",
+          "type": "dojo::world::world_contract::world::LibraryRegistered",
+          "kind": "nested"
+        },
+        {
+          "name": "EventEmitted",
+          "type": "dojo::world::world_contract::world::EventEmitted",
+          "kind": "nested"
+        },
+        {
+          "name": "MetadataUpdate",
+          "type": "dojo::world::world_contract::world::MetadataUpdate",
+          "kind": "nested"
+        },
+        {
+          "name": "StoreSetRecord",
+          "type": "dojo::world::world_contract::world::StoreSetRecord",
+          "kind": "nested"
+        },
+        {
+          "name": "StoreUpdateRecord",
+          "type": "dojo::world::world_contract::world::StoreUpdateRecord",
+          "kind": "nested"
+        },
+        {
+          "name": "StoreUpdateMember",
+          "type": "dojo::world::world_contract::world::StoreUpdateMember",
+          "kind": "nested"
+        },
+        {
+          "name": "StoreDelRecord",
+          "type": "dojo::world::world_contract::world::StoreDelRecord",
+          "kind": "nested"
+        },
+        {
+          "name": "WriterUpdated",
+          "type": "dojo::world::world_contract::world::WriterUpdated",
+          "kind": "nested"
+        },
+        {
+          "name": "OwnerUpdated",
+          "type": "dojo::world::world_contract::world::OwnerUpdated",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::EventEmitted",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "system_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "keys",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        },
+        {
+          "name": "values",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::EventRegistered",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::EventUpgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        },
+        {
+          "name": "prev_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ExternalContractRegistered",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "contract_name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "instance_name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "contract_selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "contract_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        },
+        {
+          "name": "block_number",
+          "type": "core::integer::u64",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ExternalContractUpgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "instance_name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "contract_selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "contract_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        },
+        {
+          "name": "block_number",
+          "type": "core::integer::u64",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::LibraryRegistered",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::MetadataUpdate",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "resource",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "uri",
+          "type": "core::byte_array::ByteArray",
+          "kind": "data"
+        },
+        {
+          "name": "hash",
+          "type": "core::felt252",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ModelRegistered",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "name",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::ModelUpgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        },
+        {
+          "name": "address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        },
+        {
+          "name": "prev_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::NamespaceRegistered",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "namespace",
+          "type": "core::byte_array::ByteArray",
+          "kind": "key"
+        },
+        {
+          "name": "hash",
+          "type": "core::felt252",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::OwnerUpdated",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "resource",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "contract",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "value",
+          "type": "core::bool",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::StoreDelRecord",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "entity_id",
+          "type": "core::felt252",
+          "kind": "key"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::StoreSetRecord",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "entity_id",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "keys",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        },
+        {
+          "name": "values",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::StoreUpdateMember",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "entity_id",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "member_selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "values",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::StoreUpdateRecord",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "selector",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "entity_id",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "values",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::WorldSpawned",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "data"
+        },
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::WorldUpgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "dojo::world::world_contract::world::WriterUpdated",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "resource",
+          "type": "core::felt252",
+          "kind": "key"
+        },
+        {
+          "name": "contract",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "value",
+          "type": "core::bool",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "dojo_init",
+      "inputs": [],
+      "outputs": [],
+      "state_mutability": "external"
+    },
+    {
+      "type": "function",
+      "name": "ensure_abi",
+      "inputs": [
+        {
+          "name": "event",
+          "type": "shobu::systems::actions::Escrow::winnings_claimed"
+        }
+      ],
+      "outputs": [],
+      "state_mutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "ensure_unique",
+      "inputs": [],
+      "outputs": [],
+      "state_mutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "ensure_values",
+      "inputs": [
+        {
+          "name": "value",
+          "type": "shobu::systems::actions::Escrow::winnings_claimedValue"
+        }
+      ],
+      "outputs": [],
+      "state_mutability": "view"
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::Bet",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "predicted_winner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "claimed",
+          "type": "core::bool"
+        },
+        {
+          "name": "placed_at",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::BetValue",
+      "members": [
+        {
+          "name": "predicted_winner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "claimed",
+          "type": "core::bool"
+        },
+        {
+          "name": "placed_at",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::BettingPool",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "status",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "settlement_mode",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "egs_token_id_p1",
+          "type": "core::felt252"
+        },
+        {
+          "name": "egs_token_id_p2",
+          "type": "core::felt252"
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p1",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p2",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "bettor_count_p1",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "bettor_count_p2",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "winning_player",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "winning_total",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "distributable_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "claimed_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "claimed_winner_count",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "protocol_fee_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "deadline",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "player_1",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "player_2",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::BettingPoolValue",
+      "members": [
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "status",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "settlement_mode",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "egs_token_id_p1",
+          "type": "core::felt252"
+        },
+        {
+          "name": "egs_token_id_p2",
+          "type": "core::felt252"
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p1",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p2",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "bettor_count_p1",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "bettor_count_p2",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "winning_player",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "winning_total",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "distributable_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "claimed_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "claimed_winner_count",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "protocol_fee_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "deadline",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "player_1",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "player_2",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::DenshokanConfig",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "token_contract",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::DenshokanConfigValue",
+      "members": [
+        {
+          "name": "token_contract",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::FeeVault",
+      "members": [
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "accumulated",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::FeeVaultValue",
+      "members": [
+        {
+          "name": "accumulated",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::OddsSnapshot",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "implied_prob_p1",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "implied_prob_p2",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "last_updated",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::OddsSnapshotValue",
+      "members": [
+        {
+          "name": "implied_prob_p1",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "implied_prob_p2",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "last_updated",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::PoolCounter",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "count",
+          "type": "core::integer::u32"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::PoolCounterValue",
+      "members": [
+        {
+          "name": "count",
+          "type": "core::integer::u32"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::ProtocolConfig",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "fee_bps",
+          "type": "core::integer::u16"
+        },
+        {
+          "name": "fee_recipient",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "paused",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::ProtocolConfigValue",
+      "members": [
+        {
+          "name": "fee_bps",
+          "type": "core::integer::u16"
+        },
+        {
+          "name": "fee_recipient",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "paused",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_Bet::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_BettingPool::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_DenshokanConfig::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_FeeVault::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_OddsSnapshot::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_PoolCounter::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_ProtocolConfig::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "UpgradeableEvent",
+          "type": "dojo::contract::components::upgradeable::upgradeable_cpt::Event",
+          "kind": "nested"
+        },
+        {
+          "name": "WorldProviderEvent",
+          "type": "dojo::contract::components::world_provider::world_provider_cpt::Event",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::bet_placed",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "predicted_winner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p1",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p2",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::bet_placedValue",
+      "members": [
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "predicted_winner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p1",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "total_on_p2",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::denshokan_configured",
+      "members": [
+        {
+          "name": "token_contract",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::denshokan_configuredValue",
+      "members": [
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_bet_placed::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_denshokan_configured::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_egs_pool_created::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_pool_cancelled_event::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_pool_created::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_pool_settled_event::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_protocol_fee_claimed::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_protocol_fee_configured::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_winnings_claimed::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::egs_pool_created",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "egs_token_id_p1",
+          "type": "core::felt252"
+        },
+        {
+          "name": "egs_token_id_p2",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::egs_pool_createdValue",
+      "members": [
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "egs_token_id_p1",
+          "type": "core::felt252"
+        },
+        {
+          "name": "egs_token_id_p2",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_cancelled_event",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "cancelled_by",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_cancelled_eventValue",
+      "members": [
+        {
+          "name": "cancelled_by",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_created",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "deadline",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_createdValue",
+      "members": [
+        {
+          "name": "game_world",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "game_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "creator",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "deadline",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_settled_event",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "winner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "winning_total",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "distributable_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "protocol_fee_amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_settled_eventValue",
+      "members": [
+        {
+          "name": "winner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "total_pot",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "winning_total",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "distributable_amount",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "protocol_fee_amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::protocol_fee_claimed",
+      "members": [
+        {
+          "name": "token",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "recipient",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::protocol_fee_claimedValue",
+      "members": [
+        {
+          "name": "recipient",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::protocol_fee_configured",
+      "members": [
+        {
+          "name": "fee_recipient",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "fee_bps",
+          "type": "core::integer::u16"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::protocol_fee_configuredValue",
+      "members": [
+        {
+          "name": "fee_bps",
+          "type": "core::integer::u16"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::winnings_claimed",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::winnings_claimedValue",
+      "members": [
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "shobu::systems::actions::IEscrow",
+      "items": [
+        {
+          "type": "function",
+          "name": "create_pool",
+          "inputs": [
+            {
+              "name": "game_world",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "game_id",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "token",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "deadline",
+              "type": "core::integer::u64"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "place_bet",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "predicted_winner",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "amount",
+              "type": "core::integer::u128"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "settle_pool",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "claim_winnings",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "cancel_pool",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "configure_protocol",
+          "inputs": [
+            {
+              "name": "fee_bps",
+              "type": "core::integer::u16"
+            },
+            {
+              "name": "fee_recipient",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "claim_protocol_fees",
+          "inputs": [
+            {
+              "name": "token",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "get_odds",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "(core::integer::u128, core::integer::u128)"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "get_adjusted_odds",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "(core::integer::u128, core::integer::u128)"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "create_egs_pool",
+          "inputs": [
+            {
+              "name": "game_world",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "game_id",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "token",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "deadline",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "egs_token_id_p1",
+              "type": "core::felt252"
+            },
+            {
+              "name": "egs_token_id_p2",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "configure_denshokan",
+          "inputs": [
+            {
+              "name": "token_contract",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "enabled",
+              "type": "core::bool"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    }
+  ]
+}
