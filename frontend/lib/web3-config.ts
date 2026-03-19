@@ -8,6 +8,16 @@ const DEFAULT_ETH_ADDRESS =
 const DEFAULT_STRK_ADDRESS =
   "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 
+// Sepolia defaults based on AVNU/Starkzap presets. Mainnet overrides should come from .env
+const DEFAULT_USDC_ADDRESS =
+  "0x005a643901b0ed2344c20f1882672b157fe5ea1f2d6b38c35bfe16aafe13daac";
+const DEFAULT_WBTC_ADDRESS =
+  "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac";
+const DEFAULT_STRKBTC_ADDRESS = 
+  "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"; // Replace via env
+const DEFAULT_STRK20_ADDRESS = 
+  "0x0fedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321"; // Replace via env
+
 const resolvedChainId = (process.env.NEXT_PUBLIC_CHAIN_ID ?? "KATANA") as SupportedChain;
 
 function funFactoryNetwork(chainId: SupportedChain) {
@@ -34,14 +44,40 @@ export const web3Config = {
   egsToriiUrl: process.env.NEXT_PUBLIC_EGS_TORII_URL ?? "",
   tokens: {
     eth: {
+      id: "eth",
       address: process.env.NEXT_PUBLIC_ETH_TOKEN ?? DEFAULT_ETH_ADDRESS,
       decimals: Number(process.env.NEXT_PUBLIC_ETH_DECIMALS ?? "18"),
       symbol: "ETH",
     },
     strk: {
+      id: "strk",
       address: process.env.NEXT_PUBLIC_STRK_TOKEN ?? DEFAULT_STRK_ADDRESS,
       decimals: Number(process.env.NEXT_PUBLIC_STRK_DECIMALS ?? "18"),
       symbol: "STRK",
+    },
+    usdc: {
+      id: "usdc",
+      address: process.env.NEXT_PUBLIC_USDC_TOKEN ?? DEFAULT_USDC_ADDRESS,
+      decimals: Number(process.env.NEXT_PUBLIC_USDC_DECIMALS ?? "6"),
+      symbol: "USDC",
+    },
+    wbtc: {
+      id: "wbtc",
+      address: process.env.NEXT_PUBLIC_WBTC_TOKEN ?? DEFAULT_WBTC_ADDRESS,
+      decimals: Number(process.env.NEXT_PUBLIC_WBTC_DECIMALS ?? "8"),
+      symbol: "WBTC",
+    },
+    strkbtc: {
+      id: "strkbtc",
+      address: process.env.NEXT_PUBLIC_STRKBTC_TOKEN ?? DEFAULT_STRKBTC_ADDRESS,
+      decimals: Number(process.env.NEXT_PUBLIC_STRKBTC_DECIMALS ?? "8"),
+      symbol: "strkBTC",
+    },
+    strk20: {
+      id: "strk20",
+      address: process.env.NEXT_PUBLIC_STRK20_TOKEN ?? DEFAULT_STRK20_ADDRESS,
+      decimals: Number(process.env.NEXT_PUBLIC_STRK20_DECIMALS ?? "18"),
+      symbol: "STRK20",
     },
   },
   egsEventHashes: (process.env.NEXT_PUBLIC_EGS_EVENT_HASHES ?? "")
@@ -62,6 +98,13 @@ export function normalizeAddress(address?: string) {
   return address.startsWith("0x") ? address : `0x${address}`;
 }
 
+export const supportedTokens = Object.values(web3Config.tokens);
+
+export function getTokenByAddress(address: string) {
+  const normalized = normalizeAddress(address).toLowerCase();
+  return supportedTokens.find((t) => normalizeAddress(t.address).toLowerCase() === normalized) || web3Config.tokens.strk;
+}
+
 export const cartridgePolicies = [
   web3Config.escrowAddress
     ? { target: normalizeAddress(web3Config.escrowAddress), method: "place_bet" }
@@ -69,10 +112,9 @@ export const cartridgePolicies = [
   web3Config.escrowAddress
     ? { target: normalizeAddress(web3Config.escrowAddress), method: "claim_winnings" }
     : null,
-  web3Config.tokens.eth.address
-    ? { target: normalizeAddress(web3Config.tokens.eth.address), method: "approve" }
-    : null,
-  web3Config.tokens.strk.address
-    ? { target: normalizeAddress(web3Config.tokens.strk.address), method: "approve" }
-    : null,
+  ...supportedTokens.map((token) =>
+    token.address
+      ? { target: normalizeAddress(token.address), method: "approve" }
+      : null
+  ),
 ].filter(Boolean) as Array<{ target: string; method: string }>;

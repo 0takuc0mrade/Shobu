@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Toggle } from '@/components/ui/toggle';
 import { usePlaceBet } from '@/hooks/use-betting-actions';
-import { normalizeAddress, web3Config } from '@/lib/web3-config';
+import { normalizeAddress, web3Config, getTokenByAddress, supportedTokens } from '@/lib/web3-config';
 
 interface BetSlipProps {
   selectedPlayer: 'playerA' | 'playerB' | null;
@@ -21,11 +20,14 @@ interface BetSlipProps {
 
 export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
   const [betAmount, setBetAmount] = useState('100');
-  const [currency, setCurrency] = useState<'eth' | 'strk'>('strk');
-  const [currencyLocked, setCurrencyLocked] = useState(false);
+  const poolToken = useMemo(() => {
+    if (!pool?.token) return web3Config.tokens.strk;
+    return getTokenByAddress(pool.token);
+  }, [pool?.token]);
+
   const { placeBet, status: placeStatus, error: placeError } = usePlaceBet();
 
-  const maxBet = currency === 'eth' ? 5.0 : 10000;
+  const maxBet = 10000; // simplified
   const amount = parseFloat(betAmount) || 0;
   const potentialPayout = (amount * odds).toFixed(2);
   const profit = (amount * (odds - 1)).toFixed(2);
@@ -35,24 +37,6 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
     if (!selectedPlayer) return undefined;
     return selectedPlayer === 'playerA' ? pool?.player_1 : pool?.player_2;
   }, [selectedPlayer, pool?.player_1, pool?.player_2]);
-
-  useEffect(() => {
-    if (!pool?.token) return;
-    const token = normalizeAddress(pool.token).toLowerCase();
-    const eth = normalizeAddress(web3Config.tokens.eth.address).toLowerCase();
-    const strk = normalizeAddress(web3Config.tokens.strk.address).toLowerCase();
-    if (token === eth) {
-      setCurrency('eth');
-      setCurrencyLocked(true);
-      return;
-    }
-    if (token === strk) {
-      setCurrency('strk');
-      setCurrencyLocked(true);
-      return;
-    }
-    setCurrencyLocked(false);
-  }, [pool?.token]);
 
   const handleMaxClick = () => {
     setBetAmount(maxBet.toString());
@@ -64,7 +48,7 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
       poolId,
       predictedWinner,
       amount: betAmount,
-      currency,
+      tokenAddress: poolToken.address,
     });
     setBetAmount('100');
   };
@@ -91,48 +75,23 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
           </div>
         )}
 
-        {/* Currency Toggle */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 w-16">Currency:</span>
-          <div className="flex gap-2 flex-1">
-            <Toggle
-              pressed={currency === 'eth'}
-              onPressedChange={() => {
-                setCurrency('eth');
-                setBetAmount('0.1');
-              }}
-              disabled={currencyLocked}
-              className="flex-1 data-[state=on]:bg-neon-purple data-[state=on]:text-slate-900"
-              variant="outline"
-            >
-              ETH
-            </Toggle>
-            <Toggle
-              pressed={currency === 'strk'}
-              onPressedChange={() => {
-                setCurrency('strk');
-                setBetAmount('100');
-              }}
-              disabled={currencyLocked}
-              className="flex-1 data-[state=on]:bg-neon-blue data-[state=on]:text-slate-900"
-              variant="outline"
-            >
-              STRK
-            </Toggle>
-          </div>
+        {/* Currency Display */}
+        <div className="flex justify-between items-center p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+          <span className="text-xs text-gray-400">Required Currency:</span>
+          <span className="text-sm font-bold text-neon-blue">{poolToken.symbol}</span>
         </div>
 
         {/* Bet Amount Input */}
         <div className="space-y-2">
           <label className="text-xs text-gray-400 font-medium">
-            Bet Amount ({currency.toUpperCase()})
+            Bet Amount ({poolToken.symbol})
           </label>
           <div className="relative">
             <Input
               type="number"
               min="0"
               max={maxBet}
-              step={currency === 'eth' ? '0.01' : '10'}
+              step="10"
               value={betAmount}
               onChange={(e) => setBetAmount(e.target.value)}
               placeholder="Enter amount"
@@ -154,7 +113,7 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
           <div className="flex justify-between items-center">
             <span className="text-xs text-gray-400">Stake</span>
             <span className="text-sm font-semibold text-white">
-              {betAmount} {currency.toUpperCase()}
+              {betAmount} {poolToken.symbol}
             </span>
           </div>
           <div className="flex justify-between items-center">
@@ -166,13 +125,13 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
           <div className="border-t border-slate-700/50 pt-2 mt-2 flex justify-between items-center">
             <span className="text-xs font-medium text-gray-300">Potential Payout</span>
             <span className="text-lg font-bold text-neon-blue">
-              {selectedPlayer ? `${potentialPayout} ${currency.toUpperCase()}` : '—'}
+              {selectedPlayer ? `${potentialPayout} ${poolToken.symbol}` : '—'}
             </span>
           </div>
           {selectedPlayer && amount > 0 && (
             <div className="flex justify-between items-center text-xs text-neon-purple">
               <span>Net Profit</span>
-              <span>+{profit} {currency.toUpperCase()}</span>
+              <span>+{profit} {poolToken.symbol}</span>
             </div>
           )}
         </div>

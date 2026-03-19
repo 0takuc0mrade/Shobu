@@ -140,6 +140,16 @@ if provided.
 
 Use `pnpm pool-manager:once` (or set `POOL_MANAGER_ONCE=true`) for a single polling cycle.
 
+### Pool Admin CLI
+Use the admin CLI to grant pool managers or create pools manually.
+
+```bash
+pnpm pool-admin set-pool-manager --account 0x... --enabled true
+pnpm pool-admin is-pool-manager --account 0x...
+pnpm pool-admin create-pool --game-world 0x... --game-id 42 --token 0x... --deadline 1712345678
+pnpm pool-admin create-egs-pool --game-world 0x... --game-id 42 --token 0x... --deadline 1712345678 --p1-token 0x... --p2-token 0x...
+```
+
 ### Navigation
 - **Home**: Dashboard with active games
 - **Live Games → Match**: Full match spectating and betting interface

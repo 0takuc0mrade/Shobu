@@ -1,76 +1,177 @@
-![Dojo Starter](./assets/cover.png)
+# Shobu
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/mark-dark.svg">
-  <img alt="Dojo logo" align="right" width="120" src=".github/mark-light.svg">
-</picture>
+> Decentralized betting and escrow protocol for on-chain games, built with [Dojo](https://dojoengine.org) on Starknet.
 
-<a href="https://x.com/ohayo_dojo">
-<img src="https://img.shields.io/twitter/follow/dojostarknet?style=social"/>
-</a>
-<a href="https://github.com/dojoengine/dojo/stargazers">
-<img src="https://img.shields.io/github/stars/dojoengine/dojo?style=social"/>
-</a>
-
-[![discord](https://img.shields.io/badge/join-dojo-green?logo=discord&logoColor=white)](https://discord.com/invite/dojoengine)
-[![Telegram Chat][tg-badge]][tg-url]
-
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&style=flat-square&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fdojoengine
-[tg-url]: https://t.me/dojoengine
-
-# Dojo Starter: Official Guide
-
-A quickstart guide to help you build and deploy your first Dojo provable game.
-
-Read the full tutorial [here](https://dojoengine.org/tutorial/dojo-starter).
-
-## Running Locally
-
-#### Terminal one (Make sure this is running)
-
-```bash
-# Run Katana
-katana --dev --dev.no-fee
-```
-
-#### Terminal two
-
-```bash
-# Build the example
-sozo build
-
-# Inspect the world
-sozo inspect
-
-# Migrate the example
-sozo migrate
-
-# Start Torii
-# Replace <WORLD_ADDRESS> with the address of the deployed world from the previous step
-torii --world <WORLD_ADDRESS> --http.cors_origins "*"
-```
-
-## Docker
-You can start stack using docker compose. [Here are the installation instruction](https://docs.docker.com/engine/install/)
-
-```bash
-docker compose up
-```
-You'll get all services logs in the same terminal instance. Whenever you want to stop just ctrl+c
+Shobu lets anyone create permissionless betting pools around on-chain game outcomes. Players place bets on who will win a game, and the protocol settles automatically once the game finishes — either via direct game-world queries or EGS (denshokan session token) verification.
 
 ---
 
-## Contribution
+## Architecture
 
-1. **Report a Bug**
+```
+shobu/
+├── src/                     # Cairo smart contracts (Dojo world)
+│   ├── systems/actions.cairo    # Escrow contract — pool lifecycle
+│   ├── models.cairo             # BettingPool, Bet, OddsSnapshot, etc.
+│   ├── interfaces.cairo         # IGameWorld, IMinigameTokenData, IERC20
+│   ├── odds.cairo               # On-chain odds calculation
+│   └── tests/                   # Cairo unit tests
+├── frontend/                # Next.js betting UI
+│   ├── app/                     # App router pages
+│   ├── components/              # Betting UI components
+│   ├── providers/               # StarkZap + Cartridge Controller
+│   └── lib/                     # Web3 config, utilities
+└── agents/                  # OpenServ AI agents (TypeScript)
+    └── src/
+        ├── shared/              # Config, Starknet session, Torii queries
+        ├── pool-creator/        # Automated pool creation from game feeds
+        ├── settler/             # Automated game settlement
+        ├── analyst/             # AI-powered odds & market analysis
+        └── orchestrator/        # Full lifecycle coordinator
+```
 
-    - If you think you have encountered a bug, and we should know about it, feel free to report it [here](https://github.com/dojoengine/dojo-starter/issues) and we will take care of it.
+---
 
-2. **Request a Feature**
+## Smart Contracts
 
-    - You can also request for a feature [here](https://github.com/dojoengine/dojo-starter/issues), and if it's viable, it will be picked for development.
+The core `Escrow` contract manages the entire betting lifecycle:
 
-3. **Create a Pull Request**
-    - It can't get better then this, your pull request will be appreciated by the community.
+| Function | Description |
+|----------|-------------|
+| `create_pool` | Create a direct-settlement pool for an on-chain game |
+| `create_egs_pool` | Create a pool using EGS/denshokan session tokens |
+| `place_bet` | Bet on player 1 or player 2 |
+| `settle_pool` | Permissionless settlement — queries game result on-chain |
+| `claim_winnings` | Winners claim proportional share of the pot |
+| `cancel_pool` | Cancel a pool (creator or protocol admin) |
+| `get_odds` / `get_adjusted_odds` | Query current implied odds |
 
-Happy coding!
+### Settlement Modes
+
+- **Direct**: Calls `IGameWorld.game_state()` on the game's contract to determine the winner
+- **EGS**: Calls `IMinigameTokenData.game_over()` and `score()` on denshokan session tokens to determine the winner
+
+### Models
+
+| Model | Purpose |
+|-------|---------|
+| `BettingPool` | Pool state: players, pot, status, deadline, settlement mode |
+| `Bet` | Individual bet: bettor, predicted winner, amount |
+| `OddsSnapshot` | Implied probabilities for each player |
+| `ProtocolConfig` | Fee rate and admin settings |
+| `DenshokanConfig` | EGS token contract configuration |
+
+---
+
+## AI Agents
+
+Four [OpenServ](https://openserv.ai) agents automate protocol operations, authenticated via **Cartridge Controller session keys**.
+
+### Pool Creator
+
+Monitors game feeds from the [denshokan API](https://denshokan-api-production.up.railway.app/games?network=sepolia), compares against existing on-chain pools via Torii, and creates new betting pools for games that don't have one.
+
+- **Trigger**: Cron (every 5 minutes)
+- **Capabilities**: `auto_scan`, `create_pool`, `create_egs_pool`
+
+### Settler
+
+Scans open pools and attempts settlement for any whose games have finished. Settlement is permissionless — the on-chain call reverts if the game isn't done yet, so it's safe to try and skip.
+
+- **Trigger**: Cron (every 2 minutes)
+- **Capabilities**: `list_open_pools`, `check_game_status`, `settle_pool`, `auto_settle`
+
+### Analyst
+
+Provides on-demand odds analysis, individual pool insights, and full market overviews. Uses OpenServ's `generate()` for platform-delegated AI analysis — no LLM API keys needed.
+
+- **Trigger**: Webhook
+- **Capabilities**: `get_pool_odds`, `analyze_pool`, `market_overview`
+
+### Orchestrator
+
+Coordinates the full pool lifecycle in a single call: scan → create → settle → report. Generates AI-powered summaries of each management cycle.
+
+- **Trigger**: Webhook
+- **Capabilities**: `scan_and_create`, `settle_all`, `protocol_status`, `full_cycle`
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [Dojo](https://dojoengine.org) (v1.8.0+) for building and deploying contracts
+- [Node.js](https://nodejs.org) (v18+) for the frontend and agents
+- A Cartridge Controller account on Starknet Sepolia
+
+### Deploy Contracts
+
+```bash
+# Build
+sozo build
+
+# Deploy to Sepolia
+sozo migrate --profile sepolia
+```
+
+### Run the Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+# Edit .env.local: set NEXT_PUBLIC_WORLD_ADDRESS, NEXT_PUBLIC_ESCROW_ADDRESS, etc.
+npm run dev
+```
+
+### Run the Agents
+
+```bash
+cd agents
+npm install
+cp .env.example .env
+# Edit .env: set ESCROW_ADDRESS
+
+# Bootstrap Cartridge session (one-time — opens browser for authorization)
+ALLOW_INTERACTIVE_AUTH=true EXIT_AFTER_SESSION=true npm run pool-creator
+
+# Run any agent (session reused from disk)
+npm run pool-creator    # automated pool creation
+npm run settler         # automated settlement
+npm run analyst         # odds & market analysis
+npm run orchestrator    # full lifecycle coordination
+```
+
+> **Note**: The session bootstrap only needs to run once. All agents share the same `.cartridge-agent-session/` directory and Cartridge Controller session.
+
+---
+
+## Network Configuration
+
+The protocol is deployed on **Starknet Sepolia**:
+
+| Config | Value |
+|--------|-------|
+| RPC URL | `https://api.cartridge.gg/x/starknet/sepolia` |
+| World Address | `0x06d1f1bc162ec84e592e4e2e3a69978440f8611224a61b88d8855ff4718c3aca` |
+| Pool Token | STRK (`0x04718f5a...938d`) |
+| Game Feed | [denshokan API](https://denshokan-api-production.up.railway.app/games?network=sepolia) |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Smart Contracts | Cairo, Dojo Framework |
+| Indexer | Torii (Dojo SDK) |
+| Frontend | Next.js, StarkZap, Cartridge Controller |
+| Agents | OpenServ SDK, TypeScript, Cartridge Sessions |
+| Network | Starknet Sepolia |
+
+---
+
+## License
+
+MIT

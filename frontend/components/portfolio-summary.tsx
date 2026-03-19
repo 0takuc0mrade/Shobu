@@ -1,20 +1,52 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, Wallet, Trophy } from 'lucide-react';
 import { useClaimWinnings } from '@/hooks/use-betting-actions';
-import { web3Config } from '@/lib/web3-config';
+import { web3Config, supportedTokens } from '@/lib/web3-config';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export function PortfolioSummary() {
   const totalWagered = 12500.50;
   const totalWon = 18750.25;
   const claimableWinnings = 3250.75;
   const { claim, status: claimStatus, error: claimError } = useClaimWinnings();
+  const [payoutToken, setPayoutToken] = useState(web3Config.tokens.strk.address);
+  // Track if a swap attempt failed to show the fallback button
+  const [swapFailed, setSwapFailed] = useState(false);
 
-  const handleClaimAll = async () => {
-    await claim(web3Config.activePoolId);
+  const handleClaimAll = async (overrideToken?: string) => {
+    setSwapFailed(false);
+    const targetToken = overrideToken || payoutToken;
+    const isSwap = targetToken !== web3Config.tokens.strk.address;
+
+    try {
+      await claim({
+        poolId: web3Config.activePoolId,
+        amount: claimableWinnings.toString(),
+        poolTokenAddress: web3Config.tokens.strk.address,
+        payoutTokenAddress: targetToken
+      });
+      // The hook doesn't throw on error, it sets claimStatus to 'error' and updates claimError
+    } catch {
+      if (isSwap) setSwapFailed(true);
+    }
   };
+
+  // React to hook's error state since claim() catches its own errors
+  useEffect(() => {
+    if (claimStatus === 'error' && payoutToken !== web3Config.tokens.strk.address) {
+      setSwapFailed(true);
+    }
+  }, [claimStatus, payoutToken]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -51,10 +83,26 @@ export function PortfolioSummary() {
         </div>
         <p className="text-muted-foreground text-sm mb-2">Claimable Winnings</p>
         <p className="text-3xl font-bold" style={{ color: '#10b981' }}>
-          {claimableWinnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {claimableWinnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} STRK
         </p>
+        
+        <div className="mt-4 space-y-2">
+          <label className="text-xs text-gray-400 font-medium">Receive As:</label>
+          <Select value={payoutToken} onValueChange={setPayoutToken}>
+            <SelectTrigger className="w-full bg-slate-800 border-slate-700/50 text-white">
+              <SelectValue placeholder="Select token" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700/50">
+              {supportedTokens.map((t) => (
+                <SelectItem key={t.id} value={t.address} className="text-white hover:bg-slate-700 focus:bg-slate-700">
+                  {t.symbol}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <button
-          onClick={handleClaimAll}
+          onClick={() => handleClaimAll()}
           disabled={claimStatus === 'submitting'}
           className="mt-4 w-full px-4 py-2 rounded-lg bg-gradient-to-r from-chart-3 to-chart-3/80 text-slate-dark font-semibold hover:from-chart-3/80 hover:to-chart-3/60 transition-all duration-300 shadow-lg hover:shadow-chart-3/50"
           style={{
@@ -63,10 +111,31 @@ export function PortfolioSummary() {
         >
           {claimStatus === 'submitting' ? 'Claiming...' : 'Claim All'}
         </button>
-        {claimError && (
-          <p className="text-xs text-red-400 mt-2">{claimError}</p>
+
+        {swapFailed && (
+          <button
+            onClick={() => {
+              setPayoutToken(web3Config.tokens.strk.address);
+              handleClaimAll(web3Config.tokens.strk.address);
+            }}
+            disabled={claimStatus === 'submitting'}
+            className="mt-3 w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-200 font-semibold hover:bg-slate-700 hover:text-white transition-all duration-300 shadow-sm"
+          >
+            Claim Original Token (STRK)
+          </button>
         )}
-        <p className="text-xs text-muted-foreground mt-3">Available to claim</p>
+
+        {claimError && (
+          <div className="mt-3 p-3 rounded-md bg-red-500/10 border border-red-500/20">
+            <p className="text-xs text-red-400 text-center font-medium">{claimError}</p>
+            {swapFailed && (
+              <p className="text-[10px] text-red-300/80 text-center mt-1">
+                The atomic swap likely failed due to slippage or low liquidity. Try claiming the original token.
+              </p>
+            )}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground mt-3 text-center">Available to claim</p>
       </Card>
     </div>
   );

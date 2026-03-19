@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { cairo } from "starknet";
 import { useStarkSdk } from "@/providers/stark-sdk-provider";
 import { parseUnits } from "@/lib/token-utils";
-import { normalizeAddress, web3Config } from "@/lib/web3-config";
+import { normalizeAddress, web3Config, getTokenByAddress, supportedTokens } from "@/lib/web3-config";
 
 type ExecuteStatus = "idle" | "submitting" | "error" | "success";
 const U128_MAX = (BigInt(1) << BigInt(128)) - BigInt(1);
@@ -20,7 +20,7 @@ export function usePlaceBet() {
       poolId: number;
       predictedWinner: string;
       amount: string;
-      currency: "eth" | "strk";
+      tokenAddress: string;
     }) => {
       if (!wallet?.execute) {
         setError("Wallet not connected");
@@ -45,8 +45,10 @@ export function usePlaceBet() {
           await wallet.ensureReady({ deploy: "if_needed" });
         }
 
-        const token =
-          params.currency === "eth" ? web3Config.tokens.eth : web3Config.tokens.strk;
+        const token = getTokenByAddress(params.tokenAddress);
+        if (!token) {
+          throw new Error("Unsupported token");
+        }
         const amountValue = parseUnits(params.amount, token.decimals);
         if (amountValue < 0n || amountValue > U128_MAX) {
           throw new Error("Bet amount exceeds u128 range");
@@ -96,8 +98,10 @@ export function useClaimWinnings() {
   const [error, setError] = useState<string | undefined>(undefined);
 
   const claim = useCallback(
-    async (poolId: number) => {
-      if (!wallet?.execute) {
+    async (params: { poolId: number; amount: string; poolTokenAddress: string; payoutTokenAddress?: string }) => {
+      const { poolId, amount, poolTokenAddress, payoutTokenAddress } = params;
+
+      if (!wallet?.execute || !wallet?.account?.address) {
         setError("Wallet not connected");
         setStatus("error");
         return;
@@ -118,13 +122,64 @@ export function useClaimWinnings() {
         if (wallet.ensureReady) {
           await wallet.ensureReady({ deploy: "if_needed" });
         }
-        const calls = [
+
+        const poolToken = getTokenByAddress(poolTokenAddress);
+        const payoutToken = payoutTokenAddress ? getTokenByAddress(payoutTokenAddress) : poolToken;
+
+        const calls: any[] = [
           {
             contractAddress: normalizeAddress(web3Config.escrowAddress),
             entrypoint: "claim_winnings",
             calldata: [poolId.toString()],
           },
         ];
+
+        // If requesting a different payout token, fetch AVNU swap route
+        if (poolToken.address !== payoutToken.address) {
+          const amountValue = parseUnits(amount, poolToken.decimals);
+          
+          const isSepolia = web3Config.chainId === "SEPOLIA";
+          const baseUrl = isSepolia ? "https://sepolia.api.avnu.fi" : "https://starknet.api.avnu.fi";
+          
+          // 1. Get Quote
+          const quoteParams = new URLSearchParams({
+            sellTokenAddress: normalizeAddress(poolToken.address),
+            buyTokenAddress: normalizeAddress(payoutToken.address),
+            sellAmount: amountValue.toString(),
+            takerAddress: normalizeAddress(wallet.account.address),
+            size: "1"
+          });
+          
+          const quoteRes = await fetch(`${baseUrl}/swap/v2/quotes?${quoteParams.toString()}`);
+          if (!quoteRes.ok) throw new Error("Failed to fetch swap quote");
+          const quotes = await quoteRes.json();
+          if (!quotes || quotes.length === 0) throw new Error("No swap route found");
+          
+          // 2. Build Swap Calls
+          const buildRes = await fetch(`${baseUrl}/swap/v2/build`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              quoteId: quotes[0].quoteId,
+              takerAddress: normalizeAddress(wallet.account.address),
+              slippage: 0.05, // 5% slippage tolerance for claims
+            })
+          });
+          if (!buildRes.ok) throw new Error("Failed to build swap execution");
+          const buildData = await buildRes.json();
+          
+          if (!buildData.calls || buildData.calls.length === 0) {
+            throw new Error(buildData.messages?.[0] || "Invalid swap build response");
+          }
+          
+          buildData.calls.forEach((c: any) => {
+            calls.push({
+              contractAddress: normalizeAddress(c.contractAddress),
+              entrypoint: c.entrypoint,
+              calldata: c.calldata
+            });
+          });
+        }
 
         const tx: any = await wallet.execute(calls, { feeMode: "sponsored" });
         if (tx?.wait) {

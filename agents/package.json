@@ -1,0 +1,28 @@
+{
+  "name": "shobu-agents",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "OpenServ AI agents for the Shobu betting protocol",
+  "scripts": {
+    "pool-creator": "tsx src/pool-creator/agent.ts",
+    "settler": "tsx src/settler/agent.ts",
+    "analyst": "tsx src/analyst/agent.ts",
+    "orchestrator": "tsx src/orchestrator/agent.ts"
+  },
+  "dependencies": {
+    "@openserv-labs/sdk": "^2.0.0",
+    "@openserv-labs/client": "^1.1.0",
+    "@dojoengine/sdk": "^1.5.17",
+    "@dojoengine/torii-client": "^1.5.17",
+    "@cartridge/controller": "^0.13.9",
+    "starknet": "^8.1.2",
+    "dotenv": "^16.4.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

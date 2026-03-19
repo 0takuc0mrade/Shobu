@@ -4,16 +4,18 @@
 // ---------------------------------------------------------------------------
 
 use dojo::model::{ModelStorage, ModelStorageTest};
-use dojo::world::world;
+use dojo::world::{world, WorldStorageTrait};
 use dojo_cairo_test::{
     spawn_test_world, NamespaceDef, TestResource, ContractDefTrait, WorldStorageTestTrait,
 };
+use starknet::testing::{set_account_contract_address, set_contract_address};
 
 use shobu::systems::actions::Escrow;
+use shobu::systems::actions::{IEscrowDispatcher, IEscrowDispatcherTrait};
 use shobu::models::{
     BettingPool, Bet, OddsSnapshot, ProtocolConfig, FeeVault, PoolCounter,
     m_BettingPool, m_Bet, m_OddsSnapshot, m_ProtocolConfig, m_FeeVault, m_PoolCounter,
-    m_DenshokanConfig, m_PoolManager,
+    m_DenshokanConfig, m_PoolManager, PoolManager,
 };
 
 fn namespace_def() -> NamespaceDef {
@@ -49,6 +51,16 @@ fn contract_defs() -> Span<dojo_cairo_test::ContractDef> {
             .with_writer_of([dojo::utils::bytearray_hash(@"shobu")].span())
             .with_init_calldata([].span())
     ].span()
+}
+
+fn setup_world(admin: starknet::ContractAddress) -> (dojo::world::WorldStorage, starknet::ContractAddress) {
+    let ndef = namespace_def();
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    set_account_contract_address(admin);
+    world.sync_perms_and_inits(contract_defs());
+
+    let (escrow_address, _) = world.dns(@"Escrow").unwrap();
+    (world, escrow_address)
 }
 
 // ---------------------------------------------------------------------------
@@ -214,4 +226,68 @@ fn test_escrow_initialization() {
 
     let counter: PoolCounter = world.read_model(1_u8);
     assert!(counter.count == 0_u32, "Counter should start at 0");
+}
+
+// ---------------------------------------------------------------------------
+// Pool manager access control
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_pool_manager_default_admin_enabled() {
+    let admin: starknet::ContractAddress = 0xCAFE.try_into().unwrap();
+    let (world, _) = setup_world(admin);
+
+    let config: ProtocolConfig = world.read_model(1_u8);
+    assert!(config.admin == admin, "Admin mismatch");
+
+    let manager: PoolManager = world.read_model(admin);
+    assert!(manager.enabled, "Admin should be pool manager");
+}
+
+#[test]
+#[should_panic]
+fn test_set_pool_manager_requires_admin() {
+    let admin: starknet::ContractAddress = 0xCAFE.try_into().unwrap();
+    let (world, escrow_address) = setup_world(admin);
+    let escrow = IEscrowDispatcher { contract_address: escrow_address };
+
+    let other: starknet::ContractAddress = 0xBEEF.try_into().unwrap();
+    set_contract_address(other);
+    escrow.set_pool_manager(other, true);
+
+    // keep world used to avoid unused warnings
+    let _ = world;
+}
+
+#[test]
+fn test_set_pool_manager_updates_role() {
+    let admin: starknet::ContractAddress = 0xCAFE.try_into().unwrap();
+    let (world, escrow_address) = setup_world(admin);
+    let escrow = IEscrowDispatcher { contract_address: escrow_address };
+
+    let manager: starknet::ContractAddress = 0xBEEF.try_into().unwrap();
+    set_contract_address(admin);
+    escrow.set_pool_manager(manager, true);
+
+    let record: PoolManager = world.read_model(manager);
+    assert!(record.enabled, "Manager should be enabled");
+    assert!(escrow.is_pool_manager(manager), "is_pool_manager should return true");
+}
+
+#[test]
+#[should_panic]
+fn test_create_pool_requires_pool_manager() {
+    let admin: starknet::ContractAddress = 0xCAFE.try_into().unwrap();
+    let (world, escrow_address) = setup_world(admin);
+    let escrow = IEscrowDispatcher { contract_address: escrow_address };
+
+    let other: starknet::ContractAddress = 0xBEEF.try_into().unwrap();
+    set_contract_address(other);
+
+    let game_world: starknet::ContractAddress = 0x1234.try_into().unwrap();
+    let token: starknet::ContractAddress = 0x5678.try_into().unwrap();
+    let deadline: u64 = 999999_u64;
+    escrow.create_pool(game_world, 1_u32, token, deadline);
+
+    let _ = world;
 }
