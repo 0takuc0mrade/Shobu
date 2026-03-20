@@ -1,7 +1,7 @@
 export type SupportedChain = "SEPOLIA" | "MAINNET" | "KATANA";
 
-const DEFAULT_RPC_URL = "http://localhost:5050";
-const DEFAULT_TORII_URL = "http://localhost:8080";
+const DEFAULT_RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia";
+const DEFAULT_TORII_URL = "https://api.cartridge.gg/x/shobu/torii";
 
 const DEFAULT_ETH_ADDRESS =
   "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7";
@@ -18,7 +18,7 @@ const DEFAULT_STRKBTC_ADDRESS =
 const DEFAULT_STRK20_ADDRESS = 
   "0x0fedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321"; // Replace via env
 
-const resolvedChainId = (process.env.NEXT_PUBLIC_CHAIN_ID ?? "KATANA") as SupportedChain;
+const resolvedChainId = (process.env.NEXT_PUBLIC_CHAIN_ID ?? "SEPOLIA") as SupportedChain;
 
 function funFactoryNetwork(chainId: SupportedChain) {
   if (chainId === "MAINNET") return "mainnet";
