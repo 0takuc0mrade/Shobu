@@ -8,6 +8,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: "production",
+        FORCE_TUNNEL: "true",
       },
     },
     {
@@ -18,6 +19,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: "production",
+        FORCE_TUNNEL: "true",
       },
     },
     {
@@ -28,6 +30,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: "production",
+        FORCE_TUNNEL: "true",
       },
     },
     {
@@ -38,6 +41,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: "production",
+        FORCE_TUNNEL: "true",
       },
     }
   ]

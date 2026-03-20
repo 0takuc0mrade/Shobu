@@ -55,10 +55,10 @@ export function StarkSdkProvider({ children }: { children: React.ReactNode }) {
     setStatus("connecting");
     setError(undefined);
     try {
+      console.log("Cartridge Policies:", cartridgePolicies);
       const { wallet: connectedWallet } = await sdk.onboard({
         strategy: OnboardStrategy.Cartridge,
         cartridge: {
-          preset: "controller",
           policies: cartridgePolicies,
         },
         feeMode: "sponsored",
@@ -72,6 +72,7 @@ export function StarkSdkProvider({ children }: { children: React.ReactNode }) {
       setWallet(connectedWallet as StarkZapWallet);
       setStatus("connected");
     } catch (err) {
+      console.error("Cartridge SDK Connection Error:", err);
       const message = err instanceof Error ? err.message : "Failed to connect";
       setError(message);
       setStatus("error");

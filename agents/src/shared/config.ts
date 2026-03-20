@@ -41,6 +41,8 @@ const envSchema = z.object({
       '0x06d1f1bc162ec84e592e4e2e3a69978440f8611224a61b88d8855ff4718c3aca'
     ),
   TORII_URL: z.string().url().default('http://localhost:8080'),
+  BUDOKAN_TORII_URL: z.string().url().default('http://localhost:8080'),
+  BUDOKAN_ADDRESS: z.string().default('0x0'),
   ESCROW_ADDRESS: z.string().min(1, 'ESCROW_ADDRESS is required'),
 
   // Betting defaults

@@ -117,6 +117,16 @@ echo ""
 echo "Configuring Denshokan token..."
 sozo -P sepolia execute "${USE_BLAKE2S_CASM[@]}" "${RPC_HEADER_ARGS[@]}" --wait shobu-Escrow configure_denshokan "$DENSHOKAN_TOKEN" 1
 
+# ── Configure Budokan ─────────────────────────────────────────
+echo ""
+BUDOKAN_DEFAULT_ADDRESS="0x027649a648ce25712cf90a3b32b9f15f86edb21293227d0b3cc689987c77a02b"
+read -rp "Enter the Budokan contract address [${BUDOKAN_DEFAULT_ADDRESS}]: " BUDOKAN_ADDRESS
+BUDOKAN_ADDRESS="${BUDOKAN_ADDRESS:-$BUDOKAN_DEFAULT_ADDRESS}"
+
+echo ""
+echo "Configuring Budokan..."
+sozo -P sepolia execute "${USE_BLAKE2S_CASM[@]}" "${RPC_HEADER_ARGS[@]}" --wait shobu-Escrow configure_budokan "$BUDOKAN_ADDRESS" 1
+
 # ── Parse World Address ───────────────────────────────────────
 WORLD_ADDRESS=$(echo "$MIGRATE_OUTPUT" | grep -oP 'world at address \K0x[0-9a-fA-F]+' || true)
 

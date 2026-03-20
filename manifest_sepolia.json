@@ -34,7 +34,7 @@
   "contracts": [
     {
       "address": "0x524aa3710ce681af6d8ab570f68065d52f865c954dd01ba7e92e76d49446538",
-      "class_hash": "0x4932acd3982ee73aa88a677eb6df8e7560be71d6756ea2177c8819b331759ca",
+      "class_hash": "0xaf614c6871ecc76276b1b98aac0f73c87dc069b0980cb280fa361cf707042b",
       "init_calldata": [],
       "tag": "shobu-Escrow",
       "selector": "0x42b9a1246483c0962a8968cf3598dc50b00ee51fd7258b98762f1c071279fd0",
@@ -48,7 +48,10 @@
         "configure_protocol",
         "claim_protocol_fees",
         "create_egs_pool",
+        "set_pool_manager",
         "configure_denshokan",
+        "create_budokan_pool",
+        "configure_budokan",
         "upgrade"
       ]
     }
@@ -208,11 +211,53 @@
           "name": "player_2",
           "type": "core::starknet::contract_address::ContractAddress",
           "key": false
+        },
+        {
+          "name": "budokan_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "tournament_id",
+          "type": "core::integer::u64",
+          "key": false
+        },
+        {
+          "name": "entry_id_p1",
+          "type": "core::integer::u64",
+          "key": false
+        },
+        {
+          "name": "entry_id_p2",
+          "type": "core::integer::u64",
+          "key": false
         }
       ],
-      "class_hash": "0x409bcfbef2c9fef466b6c90af4d225e2fed6bca3a2f0099d2fedb49a1bf85e3",
+      "class_hash": "0x1ce8d401328cd120badaaf3b00a6c4576371d67619a66a0c5b84e65d5eae3bf",
       "tag": "shobu-BettingPool",
       "selector": "0x2aa2e8d13891a21bd4b562223dc33f6ecc57b4a8d42a37d88cc29f98ec4265"
+    },
+    {
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8",
+          "key": true
+        },
+        {
+          "name": "default_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x4706ed7a5a8050e2ce393ba020d331ec9599dbde5f4088d093a6461fa9d3783",
+      "tag": "shobu-BudokanConfig",
+      "selector": "0x5d8d6737fa112a393e96916822740c576904544bda73baf25e5baeee796ad61"
     },
     {
       "members": [
@@ -300,6 +345,23 @@
     {
       "members": [
         {
+          "name": "account",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x78f73e070ab2bb71eb2a102e0f598322ced0ba2fc7c47daf55706ef17aa763a",
+      "tag": "shobu-PoolManager",
+      "selector": "0x14af63f4e0f3bb3ea61672c8fb566cf5dad98d1ac82ed63cc68a14562eaf00f"
+    },
+    {
+      "members": [
+        {
           "name": "id",
           "type": "core::integer::u8",
           "key": true
@@ -372,6 +434,55 @@
       "class_hash": "0x13599e0392d3f19d3fa9ccca53268362c1bcc42ac51d412511aae0923540995",
       "tag": "shobu-bet_placed",
       "selector": "0x2feb5ae2b6ff0046ec43a0ab96be0b9c9f475d2d17465f9e7fb7a4a0f1bddf1"
+    },
+    {
+      "members": [
+        {
+          "name": "default_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x28f89cf133c24f4a18f2ee46f29369f963cbd546248fcb0237b7dbf8646dd5c",
+      "tag": "shobu-budokan_configured",
+      "selector": "0x658aadf8dfd5bce0a7296e0613df59afe07ad416eb9b827617fac29d0bd88f8"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "budokan_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "tournament_id",
+          "type": "core::integer::u64",
+          "key": false
+        },
+        {
+          "name": "entry_id_p1",
+          "type": "core::integer::u64",
+          "key": false
+        },
+        {
+          "name": "entry_id_p2",
+          "type": "core::integer::u64",
+          "key": false
+        }
+      ],
+      "class_hash": "0x45c5bc540f1d87f4c89f58c500f22c67af7764e4aa0ae717a7a3778faaeab3a",
+      "tag": "shobu-budokan_pool_created",
+      "selector": "0x1be7375aa05130e079d0fc90a82e6289709a9cbb810460c3b08757904c1a1ea"
     },
     {
       "members": [
@@ -475,6 +586,23 @@
       "class_hash": "0x79c84fe58fc2329a6378fe5ad26c98adbc2f2fc25b4164c1618428a03564ab5",
       "tag": "shobu-pool_created",
       "selector": "0x34d73873329947d537a760e0bd48c6495913cac50c3136ddc059edd755f53e9"
+    },
+    {
+      "members": [
+        {
+          "name": "account",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x1a984e6c237f815be1e33e63218b8cd4d373dbe5e214a2ad27344f3a667f71c",
+      "tag": "shobu-pool_manager_updated",
+      "selector": "0x5bfaf9a1611c5b94c2d571c12040230eb4d99c44ccd6cb8fb5b54b6ce89897"
     },
     {
       "members": [
@@ -2570,6 +2698,22 @@
         {
           "name": "player_2",
           "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "budokan_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "tournament_id",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p1",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p2",
+          "type": "core::integer::u64"
         }
       ]
     },
@@ -2664,6 +2808,54 @@
         {
           "name": "player_2",
           "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "budokan_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "tournament_id",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p1",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p2",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::BudokanConfig",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "default_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::BudokanConfigValue",
+      "members": [
+        {
+          "name": "default_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
         }
       ]
     },
@@ -2789,6 +2981,30 @@
     },
     {
       "type": "struct",
+      "name": "shobu::models::PoolManager",
+      "members": [
+        {
+          "name": "account",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::PoolManagerValue",
+      "members": [
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
       "name": "shobu::models::ProtocolConfig",
       "members": [
         {
@@ -2849,6 +3065,12 @@
     },
     {
       "type": "event",
+      "name": "shobu::models::m_BudokanConfig::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
       "name": "shobu::models::m_DenshokanConfig::Event",
       "kind": "enum",
       "variants": []
@@ -2868,6 +3090,12 @@
     {
       "type": "event",
       "name": "shobu::models::m_PoolCounter::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_PoolManager::Event",
       "kind": "enum",
       "variants": []
     },
@@ -2960,6 +3188,78 @@
     },
     {
       "type": "struct",
+      "name": "shobu::systems::actions::Escrow::budokan_configured",
+      "members": [
+        {
+          "name": "default_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::budokan_configuredValue",
+      "members": [
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::budokan_pool_created",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "budokan_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "tournament_id",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p1",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p2",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::budokan_pool_createdValue",
+      "members": [
+        {
+          "name": "budokan_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "tournament_id",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p1",
+          "type": "core::integer::u64"
+        },
+        {
+          "name": "entry_id_p2",
+          "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
       "name": "shobu::systems::actions::Escrow::denshokan_configured",
       "members": [
         {
@@ -2990,6 +3290,18 @@
     },
     {
       "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_budokan_configured::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_budokan_pool_created::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
       "name": "shobu::systems::actions::Escrow::e_denshokan_configured::Event",
       "kind": "enum",
       "variants": []
@@ -3009,6 +3321,12 @@
     {
       "type": "event",
       "name": "shobu::systems::actions::Escrow::e_pool_created::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_pool_manager_updated::Event",
       "kind": "enum",
       "variants": []
     },
@@ -3161,6 +3479,30 @@
         {
           "name": "deadline",
           "type": "core::integer::u64"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_manager_updated",
+      "members": [
+        {
+          "name": "account",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::pool_manager_updatedValue",
+      "members": [
+        {
+          "name": "enabled",
+          "type": "core::bool"
         }
       ]
     },
@@ -3486,10 +3828,90 @@
         },
         {
           "type": "function",
+          "name": "set_pool_manager",
+          "inputs": [
+            {
+              "name": "account",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "enabled",
+              "type": "core::bool"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "is_pool_manager",
+          "inputs": [
+            {
+              "name": "account",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
           "name": "configure_denshokan",
           "inputs": [
             {
               "name": "token_contract",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "enabled",
+              "type": "core::bool"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "create_budokan_pool",
+          "inputs": [
+            {
+              "name": "budokan_address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "tournament_id",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "entry_id_p1",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "entry_id_p2",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "token",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "deadline",
+              "type": "core::integer::u64"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "configure_budokan",
+          "inputs": [
+            {
+              "name": "default_address",
               "type": "core::starknet::contract_address::ContractAddress"
             },
             {

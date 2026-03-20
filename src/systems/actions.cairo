@@ -55,6 +55,20 @@ pub trait IEscrow<T> {
 
     /// Configure the denshokan token contract address (admin only).
     fn configure_denshokan(ref self: T, token_contract: ContractAddress, enabled: bool);
+
+    /// Create a betting pool for a Budokan tournament match
+    fn create_budokan_pool(
+        ref self: T,
+        budokan_address: ContractAddress,
+        tournament_id: u64,
+        entry_id_p1: u64,
+        entry_id_p2: u64,
+        token: ContractAddress,
+        deadline: u64,
+    );
+
+    /// Configure the default Budokan contract address (admin only).
+    fn configure_budokan(ref self: T, default_address: ContractAddress, enabled: bool);
 }
 
 #[dojo::contract]
@@ -73,10 +87,12 @@ pub mod Escrow {
         IGameWorldDispatcher, IGameWorldDispatcherTrait,
         IMinigameTokenDataDispatcher, IMinigameTokenDataDispatcherTrait,
         IERC20Dispatcher, IERC20DispatcherTrait,
+        IBudokanDispatcher, IBudokanDispatcherTrait,
+        IERC721Dispatcher, IERC721DispatcherTrait,
     };
     use shobu::models::{
         BettingPool, Bet, OddsSnapshot, ProtocolConfig, FeeVault, PoolCounter, DenshokanConfig,
-        PoolManager,
+        PoolManager, BudokanConfig,
     };
     use shobu::odds::{
         compute_implied_odds, compute_stat_adjusted_odds, compute_payout, mul_div_u128_floor,
@@ -96,7 +112,9 @@ pub mod Escrow {
     const POOL_CANCELLED: u8 = 2_u8;
     const SETTLE_DIRECT: u8 = 0_u8;      // IGameWorld settlement
     const SETTLE_EGS: u8 = 1_u8;         // Denshokan/EGS settlement
+    const SETTLE_BUDOKAN: u8 = 2_u8;     // Budokan tournament settlement
     const DENSHOKAN_CONFIG_ID: u8 = 1_u8;
+    const BUDOKAN_CONFIG_ID: u8 = 1_u8;
 
     // -----------------------------------------------------------------------
     // Events
@@ -200,6 +218,25 @@ pub mod Escrow {
         pub egs_token_id_p2: felt252,
     }
 
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct budokan_pool_created {
+        #[key]
+        pub pool_id: u32,
+        pub budokan_address: ContractAddress,
+        pub tournament_id: u64,
+        pub entry_id_p1: u64,
+        pub entry_id_p2: u64,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct budokan_configured {
+        #[key]
+        pub default_address: ContractAddress,
+        pub enabled: bool,
+    }
+
     // -----------------------------------------------------------------------
     // Storage (reentrancy lock only — all state lives in Dojo models)
     // -----------------------------------------------------------------------
@@ -232,6 +269,13 @@ pub mod Escrow {
             @DenshokanConfig {
                 id: DENSHOKAN_CONFIG_ID,
                 token_contract: zero_address(),
+                enabled: false,
+            },
+        );
+        world.write_model(
+            @BudokanConfig {
+                id: BUDOKAN_CONFIG_ID,
+                default_address: zero_address(),
                 enabled: false,
             },
         );
@@ -299,6 +343,10 @@ pub mod Escrow {
                 deadline,
                 player_1,
                 player_2,
+                budokan_address: zero_address(),
+                tournament_id: 0_u64,
+                entry_id_p1: 0_u64,
+                entry_id_p2: 0_u64,
             };
 
             world.write_model(@counter);
@@ -435,6 +483,47 @@ pub mod Escrow {
                 assert!(score_p1 != score_p2, "Game is a draw - cannot settle");
 
                 if score_p1 > score_p2 { pool.player_1 } else { pool.player_2 }
+            } else if pool.settlement_mode == SETTLE_BUDOKAN {
+                // Budokan settlement: scan leaderboard to find who ranked higher
+                let budokan_config: BudokanConfig = world.read_model(BUDOKAN_CONFIG_ID);
+                assert!(budokan_config.enabled, "Budokan not configured");
+                let budokan = IBudokanDispatcher { contract_address: pool.budokan_address };
+
+                let phase = budokan.current_phase(pool.tournament_id);
+                // 5 = Finalized
+                assert!(phase == 5_u8, "Tournament not finalized");
+
+                let leaderboard = budokan.get_leaderboard(pool.tournament_id);
+                let mut p1_index_opt: Option<u32> = Option::None;
+                let mut p2_index_opt: Option<u32> = Option::None;
+
+                let mut i: u32 = 0;
+                loop {
+                    if i >= leaderboard.len() {
+                        break;
+                    }
+                    let entry = *leaderboard.at(i);
+                    // Match against the egs token IDs to find placement
+                    if entry == pool.entry_id_p1 {
+                        p1_index_opt = Option::Some(i);
+                    } else if entry == pool.entry_id_p2 {
+                        p2_index_opt = Option::Some(i);
+                    }
+                    i += 1;
+                };
+
+                assert!(p1_index_opt.is_some() || p2_index_opt.is_some(), "Entries not on leaderboard");
+
+                if p1_index_opt.is_some() && p2_index_opt.is_none() {
+                    pool.player_1
+                } else if p2_index_opt.is_some() && p1_index_opt.is_none() {
+                    pool.player_2
+                } else {
+                    let p1_index = p1_index_opt.unwrap();
+                    let p2_index = p2_index_opt.unwrap();
+                    // Lower index = higher rank
+                    if p1_index < p2_index { pool.player_1 } else { pool.player_2 }
+                }
             } else {
                 // Direct settlement: read game_state from external world
                 let game_dispatcher = IGameWorldDispatcher { contract_address: pool.game_world };
@@ -726,6 +815,10 @@ pub mod Escrow {
                 deadline,
                 player_1,
                 player_2,
+                budokan_address: zero_address(),
+                tournament_id: 0_u64,
+                entry_id_p1: 0_u64,
+                entry_id_p2: 0_u64,
             };
 
             world.write_model(@counter);
@@ -787,6 +880,113 @@ pub mod Escrow {
             );
 
             world.emit_event(@denshokan_configured { token_contract, enabled });
+        }
+
+        // -------------------------------------------------------------------
+        // create_budokan_pool
+        // -------------------------------------------------------------------
+        fn create_budokan_pool(
+            ref self: ContractState,
+            budokan_address: ContractAddress,
+            tournament_id: u64,
+            entry_id_p1: u64,
+            entry_id_p2: u64,
+            token: ContractAddress,
+            deadline: u64,
+        ) {
+            let mut world = self.world_default();
+            assert_not_paused(@world);
+            let caller = get_caller_address();
+            let now = get_block_timestamp();
+
+            assert_is_pool_manager(@world, caller);
+            assert!(budokan_address != zero_address(), "Invalid budokan address");
+            assert!(token != zero_address(), "Invalid token");
+            assert!(deadline > now, "Deadline must be in the future");
+            assert!(entry_id_p1 != entry_id_p2, "Entry IDs must be different");
+
+            let budokan_config: BudokanConfig = world.read_model(BUDOKAN_CONFIG_ID);
+            assert!(budokan_config.enabled, "Budokan not configured");
+
+            let budokan = IBudokanDispatcher { contract_address: budokan_address };
+            let phase = budokan.current_phase(tournament_id);
+            // 0=Scheduled, 1=Registration, 2=Staging
+            assert!(phase < 3_u8, "Tournament already started or finished");
+
+            let denshokan_config: DenshokanConfig = world.read_model(DENSHOKAN_CONFIG_ID);
+            let erc721 = IERC721Dispatcher { contract_address: denshokan_config.token_contract };
+            let player_1 = erc721.owner_of(entry_id_p1.into());
+            let player_2 = erc721.owner_of(entry_id_p2.into());
+            assert!(player_1 != zero_address() && player_1 != player_2, "Invalid players");
+
+            // Allocate pool ID
+            let mut counter: PoolCounter = world.read_model(POOL_COUNTER_ID);
+            let pool_id = counter.count + 1_u32;
+            counter.count = pool_id;
+
+            let pool = BettingPool {
+                pool_id,
+                game_world: zero_address(),
+                game_id: 0_u32,
+                token,
+                status: POOL_OPEN,
+                settlement_mode: SETTLE_BUDOKAN,
+                egs_token_id_p1: 0,
+                egs_token_id_p2: 0,
+                total_pot: 0_u128,
+                total_on_p1: 0_u128,
+                total_on_p2: 0_u128,
+                bettor_count_p1: 0_u32,
+                bettor_count_p2: 0_u32,
+                winning_player: zero_address(),
+                winning_total: 0_u128,
+                distributable_amount: 0_u128,
+                claimed_amount: 0_u128,
+                claimed_winner_count: 0_u32,
+                protocol_fee_amount: 0_u128,
+                creator: caller,
+                deadline,
+                player_1,
+                player_2,
+                budokan_address,
+                tournament_id,
+                entry_id_p1,
+                entry_id_p2,
+            };
+
+            world.write_model(@counter);
+            world.write_model(@pool);
+            world.write_model(
+                @OddsSnapshot {
+                    pool_id, implied_prob_p1: 0_u128, implied_prob_p2: 0_u128, last_updated: now,
+                },
+            );
+
+            world.emit_event(@pool_created { pool_id, game_world: zero_address(), game_id: 0_u32, token, creator: caller, deadline });
+            world.emit_event(@budokan_pool_created { pool_id, budokan_address, tournament_id, entry_id_p1, entry_id_p2 });
+        }
+
+        // -------------------------------------------------------------------
+        // configure_budokan
+        // -------------------------------------------------------------------
+        fn configure_budokan(
+            ref self: ContractState,
+            default_address: ContractAddress,
+            enabled: bool,
+        ) {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            assert_is_admin(@world, caller);
+
+            world.write_model(
+                @BudokanConfig {
+                    id: BUDOKAN_CONFIG_ID,
+                    default_address,
+                    enabled,
+                },
+            );
+
+            world.emit_event(@budokan_configured { default_address, enabled });
         }
     }
 

@@ -10,6 +10,7 @@ export const MODELS = {
   PoolCounter: 'shobu-PoolCounter',
   PoolManager: 'shobu-PoolManager',
   DenshokanConfig: 'shobu-DenshokanConfig',
+  BudokanConfig: 'shobu-BudokanConfig',
   FeeVault: 'shobu-FeeVault',
 } as const
 
@@ -20,6 +21,7 @@ export const MODELS = {
 export const ENTRYPOINTS = {
   createPool: 'create_pool',
   createEgsPool: 'create_egs_pool',
+  createBudokanPool: 'create_budokan_pool',
   settlePool: 'settle_pool',
   cancelPool: 'cancel_pool',
   placeBet: 'place_bet',
@@ -30,6 +32,7 @@ export const ENTRYPOINTS = {
   isPoolManager: 'is_pool_manager',
   configureProtocol: 'configure_protocol',
   configureDenshokan: 'configure_denshokan',
+  configureBudokan: 'configure_budokan',
   claimProtocolFees: 'claim_protocol_fees',
 } as const
 
@@ -50,6 +53,7 @@ export const POOL_STATUS = {
 export const SETTLEMENT_MODE = {
   DIRECT: 0,    // IGameWorld settlement
   EGS: 1,       // Denshokan/EGS settlement
+  BUDOKAN: 2,   // Budokan tournament settlement
 } as const
 
 // -----------------------------------------------------------------------

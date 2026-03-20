@@ -15,7 +15,7 @@ use shobu::systems::actions::{IEscrowDispatcher, IEscrowDispatcherTrait};
 use shobu::models::{
     BettingPool, Bet, OddsSnapshot, ProtocolConfig, FeeVault, PoolCounter,
     m_BettingPool, m_Bet, m_OddsSnapshot, m_ProtocolConfig, m_FeeVault, m_PoolCounter,
-    m_DenshokanConfig, m_PoolManager, PoolManager,
+    m_DenshokanConfig, m_PoolManager, PoolManager, BudokanConfig, m_BudokanConfig,
 };
 
 fn namespace_def() -> NamespaceDef {
@@ -30,6 +30,7 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_PoolCounter::TEST_CLASS_HASH),
             TestResource::Model(m_PoolManager::TEST_CLASS_HASH),
             TestResource::Model(m_DenshokanConfig::TEST_CLASS_HASH),
+            TestResource::Model(m_BudokanConfig::TEST_CLASS_HASH),
             TestResource::Event(Escrow::e_pool_created::TEST_CLASS_HASH),
             TestResource::Event(Escrow::e_bet_placed::TEST_CLASS_HASH),
             TestResource::Event(Escrow::e_pool_settled_event::TEST_CLASS_HASH),
@@ -40,6 +41,8 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Event(Escrow::e_denshokan_configured::TEST_CLASS_HASH),
             TestResource::Event(Escrow::e_pool_manager_updated::TEST_CLASS_HASH),
             TestResource::Event(Escrow::e_egs_pool_created::TEST_CLASS_HASH),
+            TestResource::Event(Escrow::e_budokan_pool_created::TEST_CLASS_HASH),
+            TestResource::Event(Escrow::e_budokan_configured::TEST_CLASS_HASH),
             TestResource::Contract(Escrow::TEST_CLASS_HASH),
         ].span(),
     }
@@ -138,6 +141,10 @@ fn test_betting_pool_model() {
             deadline: 999_u64,
             player_1: p1,
             player_2: p2,
+            budokan_address: zero,
+            tournament_id: 0_u64,
+            entry_id_p1: 0_u64,
+            entry_id_p2: 0_u64,
         },
     );
 
@@ -290,4 +297,70 @@ fn test_create_pool_requires_pool_manager() {
     escrow.create_pool(game_world, 1_u32, token, deadline);
 
     let _ = world;
+}
+
+#[test]
+fn test_budokan_pool_model() {
+    let admin: starknet::ContractAddress = 0xCAFE.try_into().unwrap();
+    let (mut world, _escrow_address) = setup_world(admin);
+    let zero: starknet::ContractAddress = 0x0.try_into().unwrap();
+
+    // Write and read BudokanConfig
+    let expected_budokan: starknet::ContractAddress = 0xAAAA.try_into().unwrap();
+    world.write_model_test(
+        @BudokanConfig {
+            id: 1_u8,
+            default_address: expected_budokan,
+            enabled: true,
+        }
+    );
+    let config: BudokanConfig = world.read_model(1_u8);
+    assert!(config.default_address == expected_budokan, "Config address mismatch");
+    assert!(config.enabled == true, "Config enabled mismatch");
+
+    // Write and read a Budokan-specific BettingPool
+    let expected_tournament = 42_u64;
+    let expected_entry_1 = 123_u64;
+    let expected_entry_2 = 456_u64;
+    let dummy_player_1: starknet::ContractAddress = 0x1111.try_into().unwrap();
+    let dummy_player_2: starknet::ContractAddress = 0x2222.try_into().unwrap();
+
+    let pool = BettingPool {
+        pool_id: 2_u32,
+        game_world: zero,
+        game_id: 0_u32,
+        token: zero,
+        status: 0_u8,
+        settlement_mode: 2_u8, // SETTLE_BUDOKAN
+        egs_token_id_p1: 0,
+        egs_token_id_p2: 0,
+        total_pot: 0_u128,
+        total_on_p1: 0_u128,
+        total_on_p2: 0_u128,
+        bettor_count_p1: 0_u32,
+        bettor_count_p2: 0_u32,
+        winning_player: zero,
+        winning_total: 0_u128,
+        distributable_amount: 0_u128,
+        claimed_amount: 0_u128,
+        claimed_winner_count: 0_u32,
+        protocol_fee_amount: 0_u128,
+        creator: admin,
+        deadline: 999999_u64,
+        player_1: dummy_player_1,
+        player_2: dummy_player_2,
+        budokan_address: expected_budokan,
+        tournament_id: expected_tournament,
+        entry_id_p1: expected_entry_1,
+        entry_id_p2: expected_entry_2,
+    };
+
+    world.write_model_test(@pool);
+
+    let read_pool: BettingPool = world.read_model(2_u32);
+    assert!(read_pool.settlement_mode == 2_u8, "Wrong settlement mode");
+    assert!(read_pool.budokan_address == expected_budokan, "Wrong budokan address");
+    assert!(read_pool.tournament_id == expected_tournament, "Wrong tournament id");
+    assert!(read_pool.entry_id_p1 == expected_entry_1, "Wrong entry id 1");
+    assert!(read_pool.entry_id_p2 == expected_entry_2, "Wrong entry id 2");
 }

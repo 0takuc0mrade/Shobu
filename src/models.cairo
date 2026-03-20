@@ -53,6 +53,19 @@ pub struct DenshokanConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Budokan tournament configuration (singleton)
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct BudokanConfig {
+    #[key]
+    pub id: u8,
+    pub default_address: ContractAddress,  // default Budokan contract address
+    pub enabled: bool,
+}
+
+// ---------------------------------------------------------------------------
 // Fee vault — accumulated protocol fees per token
 // ---------------------------------------------------------------------------
 
@@ -82,7 +95,7 @@ pub struct BettingPool {
     // Pool lifecycle: 0 = open, 1 = settled, 2 = cancelled
     pub status: u8,
 
-    // Settlement mode: 0 = IGameWorld (direct), 1 = EGS (denshokan tokens)
+    // Settlement mode: 0 = IGameWorld (direct), 1 = EGS (denshokan tokens), 2 = Budokan 
     pub settlement_mode: u8,
     pub egs_token_id_p1: felt252,
     pub egs_token_id_p2: felt252,
@@ -107,6 +120,12 @@ pub struct BettingPool {
     pub deadline: u64,
     pub player_1: ContractAddress,
     pub player_2: ContractAddress,
+    
+    // Budokan tournament data
+    pub budokan_address: ContractAddress,
+    pub tournament_id: u64,
+    pub entry_id_p1: u64,
+    pub entry_id_p2: u64,
 }
 
 // ---------------------------------------------------------------------------

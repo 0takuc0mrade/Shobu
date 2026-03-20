@@ -43,6 +43,19 @@ pub trait IERC721<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Budokan tournament interface (minimal — only the view functions Shobu needs)
+// Budokan's current_phase() returns a Phase enum, which serializes as u8:
+//   0 = Scheduled, 1 = Registration, 2 = Staging, 3 = Live,
+//   4 = Submission, 5 = Finalized
+// ---------------------------------------------------------------------------
+
+#[starknet::interface]
+pub trait IBudokan<T> {
+    fn get_leaderboard(self: @T, tournament_id: u64) -> Array<u64>;
+    fn current_phase(self: @T, tournament_id: u64) -> u8;
+}
+
+// ---------------------------------------------------------------------------
 // Minimal ERC20 interface (transfer / transfer_from / balance_of)
 // ---------------------------------------------------------------------------
 

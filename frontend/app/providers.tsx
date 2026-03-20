@@ -6,6 +6,7 @@ import { web3Config } from "@/lib/web3-config";
 import { StarkSdkProvider } from "@/providers/stark-sdk-provider";
 import { DojoProvider } from "@/providers/dojo-provider";
 import { EgsProvider } from "@/providers/egs-provider";
+import { BudokanProvider } from "@/providers/budokan-provider";
 
 const provider = jsonRpcProvider({
   rpc: () => ({ nodeUrl: web3Config.rpcUrl }),
@@ -23,7 +24,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     >
       <StarkSdkProvider>
         <DojoProvider>
-          <EgsProvider>{children}</EgsProvider>
+          <EgsProvider>
+            <BudokanProvider>{children}</BudokanProvider>
+          </EgsProvider>
         </DojoProvider>
       </StarkSdkProvider>
     </StarknetConfig>

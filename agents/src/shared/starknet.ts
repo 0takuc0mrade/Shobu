@@ -29,6 +29,7 @@ function createSessionPolicies(escrowAddress: string) {
         methods: [
           { name: 'Create Pool', entrypoint: ENTRYPOINTS.createPool },
           { name: 'Create EGS Pool', entrypoint: ENTRYPOINTS.createEgsPool },
+          { name: 'Create Budokan Pool', entrypoint: ENTRYPOINTS.createBudokanPool },
           { name: 'Settle Pool', entrypoint: ENTRYPOINTS.settlePool },
           { name: 'Cancel Pool', entrypoint: ENTRYPOINTS.cancelPool },
           { name: 'Set Pool Manager', entrypoint: ENTRYPOINTS.setPoolManager },

@@ -87,7 +87,7 @@ function parseMatch(entry: any, defaultToken: string): MatchInfo | null {
   const worldAddress = pickValue(entry, [
     'world_address', 'worldAddress', 'dojo_world', 'world',
     'world_contract', 'worldContract', 'game_world', 'gameWorld',
-    'actions_address', 'actionsAddress',
+    'actions_address', 'actionsAddress', 'contract_address', 'contractAddress',
   ])
   if (!worldAddress) return null
 
@@ -163,7 +163,7 @@ const agent = new Agent({
 agent.addCapability({
   name: 'auto_scan',
   description:
-    'Scan the game feed, compare against existing on-chain pools, and create missing pools automatically.',
+    'Scan the game feed for supported games, then dynamically query each game\'s Torii indexer to find active EGS session tokens. It automatically creates Shobu pools for any 1v1 match (two players holding the same ERC1155 Token ID).',
   inputSchema: z.object({
     dryRun: z
       .boolean()
@@ -174,7 +174,7 @@ agent.addCapability({
     const config = getConfig()
     const nowSec = Math.floor(Date.now() / 1000)
 
-    // 1. Fetch game feed
+    // 1. Fetch game feed directory
     let payload: any
     try {
       const response = await fetch(config.FEED_URL)
@@ -186,11 +186,18 @@ agent.addCapability({
     }
 
     const entries = extractList(payload)
-    const matches = entries
-      .map((entry) => parseMatch(entry, config.POOL_TOKEN))
-      .filter(Boolean) as MatchInfo[]
+    const games = entries
+      .map((entry) => {
+        const gameId = parseNumber(pickValue(entry, ['game_id', 'gameId', 'id', 'gameID']))
+        const worldAddress = pickValue(entry, ['world_address', 'worldAddress', 'contract_address', 'contractAddress'])
+        const tokenAddress = pickValue(entry, ['token_address', 'tokenAddress', 'denshokan_token', 'denshokanToken'])
+        const toriiUrl = pickValue(entry, ['torii_url', 'toriiUrl'])
+        if (!gameId || !worldAddress || !tokenAddress || !toriiUrl) return null
+        return { gameId, worldAddress: normalizeAddress(worldAddress), tokenAddress: normalizeAddress(tokenAddress), toriiUrl }
+      })
+      .filter(Boolean) as any[]
 
-    if (matches.length === 0) return 'No matches found in feed.'
+    if (games.length === 0) return 'No fully-configured EGS games found in feed (missing toriiUrl or tokenAddress).'
 
     // 2. Fetch existing on-chain pools
     let existingPools: BettingPoolModel[] = []
@@ -200,83 +207,234 @@ agent.addCapability({
       return `Torii query failed: ${err?.message ?? err}`
     }
 
+    // We no longer rely on game_id. We check if the egs_token_id is already in a pool.
+    // For EGS pools, the existing code stored EGS tokens as player 1 and 2, but wait!
+    // The previous design stored EGS token IDs directly inside BettingPool or we can just rely
+    // on the fact that if a pool exists for that session, we shouldn't create another.
+    // To cleanly avoid duplicates without changing contract struct, we assume game_id on Shobu IS the EGS token_id (match ID).
     const existingKeys = new Set(
-      existingPools.map((pool) => {
-        const gw = normalizeAddress(pool.game_world)
-        return `${gw}:${Number(pool.game_id)}`
-      })
+      existingPools.map((pool) => `${normalizeAddress(pool.game_world)}:${Number(pool.game_id)}`)
     )
 
-    // 3. Create missing pools
+    // 3. Scan Torii for active matches
     const results: string[] = []
     let created = 0
 
-    for (const match of matches) {
+    const { ToriiClient } = await import('@dojoengine/torii-client')
+
+    for (const game of games) {
       if (created >= config.MAX_POOLS_PER_TICK) break
 
-      const matchKey = `${match.gameWorld}:${match.gameId}`
-      if (existingKeys.has(matchKey)) continue
-
-      const deadline = computeDeadline(
-        nowSec,
-        match.startTimeSec,
-        match.deadlineSec,
-        config.DEADLINE_BUFFER_SECONDS,
-        config.DEFAULT_DEADLINE_SECONDS
-      )
-
-      if (
-        !shouldCreate(
-          nowSec,
-          match.startTimeSec,
-          deadline,
-          config.CREATE_LEAD_SECONDS
-        )
-      )
-        continue
-      if (deadline <= nowSec) continue
-
-      const isEgs = Boolean(match.egsTokenIdP1 && match.egsTokenIdP2)
-      const entrypoint = isEgs
-        ? ENTRYPOINTS.createEgsPool
-        : ENTRYPOINTS.createPool
-
-      const calldata = isEgs
-        ? [
-            match.gameWorld,
-            match.gameId.toString(),
-            match.token,
-            deadline.toString(),
-            match.egsTokenIdP1!,
-            match.egsTokenIdP2!,
-          ]
-        : [
-            match.gameWorld,
-            match.gameId.toString(),
-            match.token,
-            deadline.toString(),
-          ]
-
-      if (args.dryRun) {
-        results.push(`[DRY RUN] Would create ${isEgs ? 'EGS' : 'direct'} pool for ${matchKey} (deadline ${deadline})`)
-        created++
-        continue
-      }
-
       try {
-        const txHash = await executeAndWait([
-          { contractAddress: config.ESCROW_ADDRESS, entrypoint, calldata },
-        ])
-        results.push(
-          `Created ${isEgs ? 'EGS' : 'direct'} pool for ${matchKey} — tx: ${txHash}`
-        )
-        created++
+        const client = new ToriiClient({ toriiUrl: game.toriiUrl, worldAddress: game.worldAddress })
+        const matchesReady = new Map<number, { p1: string; p2: string }>()
+        // Fetch all TokenBalances globally for this game's session token 
+        let cursor: string | undefined = undefined
+        const allBalances: any[] = []
+        do {
+          const page: any = await client.getTokenBalances({
+            contract_addresses: [game.tokenAddress],
+            account_addresses: [], // Empty fetches all players
+            token_ids: [],
+            pagination: { limit: 1000, cursor, direction: 'Forward', order_by: [] }
+          })
+          if (Array.isArray(page?.items)) allBalances.push(...page.items)
+          cursor = page?.next_cursor
+        } while (cursor)
+
+        // Group by token_id to find 1v1 lobbies (ERC1155 generic approach)
+        const balancesByToken = new Map<string, string[]>()
+        for (const bal of allBalances) {
+          const tId = bal.token_id ?? '0x0'
+          if (!balancesByToken.has(tId)) balancesByToken.set(tId, [])
+          balancesByToken.get(tId)!.push(bal.account_address!)
+        }
+        for (const [tokenId, players] of balancesByToken.entries()) {
+          if (players.length !== 2) continue
+          try {
+            const mId = Number(BigInt(tokenId))
+            matchesReady.set(mId, { p1: tokenId, p2: tokenId })
+          } catch {}
+        }
+
+        // Generic ERC721 Approach: Dynamically query Torii GraphQL for SessionLinked models
+        try {
+          const graphqlUrl = game.toriiUrl.replace(/\/graphql\/?$/, '') + '/graphql'
+          // 1. Introspection to find the exact Sessionlinked query name regardless of namespace
+          const introRes = await fetch(graphqlUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: '{ __schema { queryType { fields { name } } } }' })
+          })
+          if (introRes.ok) {
+            const intro = await introRes.json()
+            const fields: any[] = intro?.data?.__schema?.queryType?.fields ?? []
+            const sessionQuery = fields.find((f: any) => f.name && (f.name.toLowerCase().endsWith('sessionlinkedmodels') || f.name.toLowerCase().endsWith('sessionlinkmodels')))
+            
+            if (sessionQuery) {
+              const queryName = sessionQuery.name
+              // 2. Fetch all SessionLinked models using the discovered query
+              const fetchRes = await fetch(graphqlUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query: `{ ${queryName}(limit: 1000) { edges { node { token_id game_id } } } }`
+                })
+              })
+              
+              if (fetchRes.ok) {
+                const sessionData = await fetchRes.json()
+                const edges = sessionData?.data?.[queryName]?.edges ?? []
+                
+                const sessionsByGame = new Map<number, string[]>()
+                for (const edge of edges) {
+                   const node = edge.node
+                   if (!node) continue
+                   const tId = node.token_id?.toString()
+                   const gIdNum = Number(node.game_id)
+                   if (tId && !Number.isNaN(gIdNum)) {
+                     if (!sessionsByGame.has(gIdNum)) sessionsByGame.set(gIdNum, [])
+                     sessionsByGame.get(gIdNum)!.push(tId)
+                   }
+                }
+                
+                for (const [gIdNum, sessionTokens] of sessionsByGame.entries()) {
+                   // Exactly 2 distinct tokens mean a 1v1 match has been formed
+                   if (sessionTokens.length === 2 && sessionTokens[0] !== sessionTokens[1]) {
+                     matchesReady.set(gIdNum, { p1: sessionTokens[0], p2: sessionTokens[1] })
+                   }
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+           console.log(`Failed generic GraphQL resolution for ${game.toriiUrl}: ${err.message}`)
+        }
+
+        // For every matched lobby found!
+        for (const [matchIdNum, tokens] of matchesReady.entries()) {
+          if (created >= config.MAX_POOLS_PER_TICK) break
+
+          const poolKey = `${game.worldAddress}:${matchIdNum}`
+          if (existingKeys.has(poolKey)) continue // Already created a pool for this match
+
+          const deadline = nowSec + config.DEFAULT_DEADLINE_SECONDS
+
+          const calldata = [
+            game.worldAddress,
+            matchIdNum.toString(),
+            config.POOL_TOKEN,
+            deadline.toString(),
+            tokens.p1, // egs_token_id_p1
+            tokens.p2  // egs_token_id_p2
+          ]
+
+          if (args.dryRun) {
+            results.push(`[DRY RUN] Would create EGS pool for match ${poolKey} (tokens: ${tokens.p1}, ${tokens.p2})`)
+            created++
+            continue
+          }
+
+          const txHash = await executeAndWait([
+            { contractAddress: config.ESCROW_ADDRESS, entrypoint: ENTRYPOINTS.createEgsPool, calldata }
+          ])
+          results.push(`Created EGS pool for match ${poolKey} — tx: ${txHash}`)
+          created++
+          existingKeys.add(poolKey)
+        }
       } catch (err: any) {
-        results.push(`Failed to create pool for ${matchKey}: ${err?.message ?? err}`)
+        results.push(`Failed scanning Torii ${game.toriiUrl} for ${game.worldAddress}: ${err?.message ?? err}`)
       }
     }
 
-    if (results.length === 0) return 'All feed games already have pools.'
+    // --- 4. Scan Budokan Tournaments ---
+    if (created < config.MAX_POOLS_PER_TICK && config.BUDOKAN_TORII_URL && config.BUDOKAN_ADDRESS !== '0x0') {
+      try {
+        const budokanGraphqlUrl = config.BUDOKAN_TORII_URL.replace(/\/graphql\/?$/, '') + '/graphql'
+        const introRes = await fetch(budokanGraphqlUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: '{ __schema { queryType { fields { name } } } }' })
+        })
+        if (introRes.ok) {
+          const intro = await introRes.json()
+          const fields: any[] = intro?.data?.__schema?.queryType?.fields ?? []
+          const regQuery = fields.find((f: any) => f.name && f.name.toLowerCase().includes('registration') && (f.name.toLowerCase().includes('model') || f.name.toLowerCase().includes('event')))
+          
+          if (regQuery) {
+            const queryName = regQuery.name
+            const fetchRes = await fetch(budokanGraphqlUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: `{ ${queryName}(limit: 1000) { edges { node { tournament_id game_token_id } } } }`
+              })
+            })
+            
+            if (fetchRes.ok) {
+              const regData = await fetchRes.json()
+              const edges = regData?.data?.[queryName]?.edges ?? []
+              
+              const entriesByTourney = new Map<number, string[]>()
+              for (const edge of edges) {
+                 const node = edge.node
+                 if (!node) continue
+                 const tId = Number(node.tournament_id)
+                 const entryId = node.game_token_id?.toString()
+                 if (entryId && !Number.isNaN(tId)) {
+                   if (!entriesByTourney.has(tId)) entriesByTourney.set(tId, [])
+                   entriesByTourney.get(tId)!.push(entryId)
+                 }
+              }
+              
+              for (const [tId, entries] of entriesByTourney.entries()) {
+                 if (created >= config.MAX_POOLS_PER_TICK) break
+                 
+                 // Find distinct entries to bet on
+                 const distinct = Array.from(new Set(entries))
+                 if (distinct.length >= 2) {
+                   const p1 = distinct[0]
+                   const p2 = distinct[1]
+                   // Keep the key consistent with how we track uniqueness
+                   const poolKey = `budokan:${tId}:${p1}:${p2}`
+                   
+                   // Assuming game_id logic handles it or we track locally:
+                   // The contract uses tournament_id. We're avoiding re-creation.
+                   if (existingKeys.has(poolKey)) continue
+                   
+                   const deadline = nowSec + config.DEFAULT_DEADLINE_SECONDS
+                   if (args.dryRun) {
+                      results.push(`[DRY RUN] Would create Budokan pool for tourney ${tId} (entries: ${p1}, ${p2})`)
+                      created++
+                      continue
+                   }
+                   
+                   const calldata = [
+                     normalizeAddress(config.BUDOKAN_ADDRESS),
+                     tId.toString(),
+                     p1,
+                     p2,
+                     config.POOL_TOKEN,
+                     deadline.toString(),
+                   ]
+                   
+                   const txHash = await executeAndWait([
+                     { contractAddress: config.ESCROW_ADDRESS, entrypoint: ENTRYPOINTS.createBudokanPool, calldata }
+                   ])
+                   results.push(`Created Budokan pool for Tourney ${tId} — tx: ${txHash}`)
+                   created++
+                   existingKeys.add(poolKey)
+                 }
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+         console.log(`Failed Budokan Torii scan: ${err.message}`)
+      }
+    }
+
+    if (results.length === 0) return 'Scanned all endpoints. No new matches found.'
     return results.join('\n')
   },
 })
@@ -342,6 +500,40 @@ agent.addCapability({
       },
     ])
     return `EGS pool created — tx: ${txHash}`
+  },
+})
+
+// --- Capability: create_budokan_pool ---
+agent.addCapability({
+  name: 'create_budokan_pool',
+  description:
+    'Create an Budokan-mode betting pool using tournament ID and entry IDs.',
+  inputSchema: z.object({
+    budokanAddress: z.string().describe('Budokan contract address'),
+    tournamentId: z.number().int().describe('Budokan Tournament ID'),
+    entryIdP1: z.number().int().describe('Entry ID for player 1'),
+    entryIdP2: z.number().int().describe('Entry ID for player 2'),
+    token: z.string().optional().describe('ERC20 token address (defaults to STRK)'),
+    deadline: z.number().int().describe('Betting deadline as unix timestamp'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+    const token = normalizeAddress(args.token ?? config.POOL_TOKEN)
+    const txHash = await executeAndWait([
+      {
+        contractAddress: config.ESCROW_ADDRESS,
+        entrypoint: ENTRYPOINTS.createBudokanPool,
+        calldata: [
+          normalizeAddress(args.budokanAddress),
+          args.tournamentId.toString(),
+          args.entryIdP1.toString(),
+          args.entryIdP2.toString(),
+          token,
+          args.deadline.toString(),
+        ],
+      },
+    ])
+    return `Budokan pool created — tx: ${txHash}`
   },
 })
 

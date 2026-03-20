@@ -172,6 +172,26 @@ The protocol is deployed on **Starknet Sepolia**:
 
 ---
 
+## Roadmap
+
+Shobu is evolving into a fully autonomous, cross-chain betting infrastructure. Our roadmap focuses on deep integration with the OpenServ ecosystem:
+
+### Phase 1: Foundation & Observability
+- **ERC-8004 Identity**: Register all agents on the Base blockchain for on-chain verifiability and discovery.
+- **Cloud Deployment**: Transition from local tunneling to 24/7 managed hosting on OpenServ Cloud.
+- **Protocol Audit Trails**: Implement structured logging and persistent file uploads for full operational transparency.
+
+### Phase 2: Monetization & Ecosystem
+- **x402 Paid Analysis**: Enable paid API calls for the Analyst agent to provide premium market intelligence.
+- **Ideaboard Synergy**: List Shobu services on the OpenServ Ideaboard to foster multi-agent collaboration.
+- **Multi-Agent Orchestration**: Implement declarative workflow edges for true, DAG-based autonomous coordination.
+
+### Phase 3: Expansion & Optimization
+- **Base Protocol Token**: Launch the SHOBU token on Base with Aerodrome concentrated liquidity.
+- **Runless AI Optimization**: Pivot to platform-native runless capabilities to minimize agent overhead and cost.
+
+---
+
 ## License
 
 MIT

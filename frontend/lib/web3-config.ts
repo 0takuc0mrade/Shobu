@@ -105,16 +105,32 @@ export function getTokenByAddress(address: string) {
   return supportedTokens.find((t) => normalizeAddress(t.address).toLowerCase() === normalized) || web3Config.tokens.strk;
 }
 
+// Starknet field prime: P = 2^251 + 17 * 2^192 + 1
+const STARKNET_PRIME = BigInt("0x0800000000000011000000000000000000000000000000000000000000000001");
+
+function isValidStarknetAddress(addr?: string): boolean {
+  if (!addr) return false;
+  const normalized = normalizeAddress(addr);
+  if (!/^0x[0-9a-fA-F]{1,64}$/.test(normalized)) return false;
+  try {
+    const val = BigInt(normalized);
+    return val > 0n && val < STARKNET_PRIME;
+  } catch {
+    return false;
+  }
+}
+
 export const cartridgePolicies = [
-  web3Config.escrowAddress
+  web3Config.escrowAddress && isValidStarknetAddress(web3Config.escrowAddress)
     ? { target: normalizeAddress(web3Config.escrowAddress), method: "place_bet" }
     : null,
-  web3Config.escrowAddress
+  web3Config.escrowAddress && isValidStarknetAddress(web3Config.escrowAddress)
     ? { target: normalizeAddress(web3Config.escrowAddress), method: "claim_winnings" }
     : null,
-  ...supportedTokens.map((token) =>
-    token.address
-      ? { target: normalizeAddress(token.address), method: "approve" }
-      : null
-  ),
+  ...supportedTokens
+    .filter((token) => isValidStarknetAddress(token.address))
+    .map((token) => ({
+      target: normalizeAddress(token.address),
+      method: "approve",
+    })),
 ].filter(Boolean) as Array<{ target: string; method: string }>;
