@@ -1,3 +1,5 @@
+import type { SessionPolicies } from "@cartridge/controller";
+
 export type SupportedChain = "SEPOLIA" | "MAINNET" | "KATANA";
 
 const DEFAULT_RPC_URL = "https://api.cartridge.gg/x/starknet/sepolia";
@@ -120,17 +122,72 @@ function isValidStarknetAddress(addr?: string): boolean {
   }
 }
 
+const PLACEHOLDER_POLICY_ADDRESSES = new Set(
+  [DEFAULT_STRKBTC_ADDRESS, DEFAULT_STRK20_ADDRESS].map((addr) =>
+    normalizeAddress(addr).toLowerCase()
+  )
+);
+
+function isPolicyAddress(address?: string) {
+  if (!isValidStarknetAddress(address)) return false;
+  const normalized = normalizeAddress(address).toLowerCase();
+  return !PLACEHOLDER_POLICY_ADDRESSES.has(normalized);
+}
+
+const MAX_UINT128 = "0xffffffffffffffffffffffffffffffff";
+
 export const cartridgePolicies = [
-  web3Config.escrowAddress && isValidStarknetAddress(web3Config.escrowAddress)
+  web3Config.escrowAddress && isPolicyAddress(web3Config.escrowAddress)
     ? { target: normalizeAddress(web3Config.escrowAddress), method: "place_bet" }
     : null,
-  web3Config.escrowAddress && isValidStarknetAddress(web3Config.escrowAddress)
+  web3Config.escrowAddress && isPolicyAddress(web3Config.escrowAddress)
     ? { target: normalizeAddress(web3Config.escrowAddress), method: "claim_winnings" }
     : null,
   ...supportedTokens
-    .filter((token) => isValidStarknetAddress(token.address))
+    .filter((token) => isPolicyAddress(token.address))
     .map((token) => ({
       target: normalizeAddress(token.address),
       method: "approve",
     })),
 ].filter(Boolean) as Array<{ target: string; method: string }>;
+
+const escrowPolicyAddress = isPolicyAddress(web3Config.escrowAddress)
+  ? normalizeAddress(web3Config.escrowAddress)
+  : "";
+
+const controllerContractPolicies: SessionPolicies["contracts"] = {
+  ...(escrowPolicyAddress
+    ? {
+        [escrowPolicyAddress]: {
+          name: "Shobu Escrow",
+          methods: [
+            { name: "Place Bet", entrypoint: "place_bet" },
+            { name: "Claim Winnings", entrypoint: "claim_winnings" },
+          ],
+        },
+      }
+    : {}),
+  ...(escrowPolicyAddress
+    ? supportedTokens
+        .filter((token) => isPolicyAddress(token.address))
+        .reduce<SessionPolicies["contracts"]>((acc, token) => {
+          acc[normalizeAddress(token.address)] = {
+            name: `${token.symbol} Approvals`,
+            methods: [
+              {
+                name: "Approve",
+                entrypoint: "approve",
+                spender: escrowPolicyAddress,
+                amount: MAX_UINT128,
+              },
+            ],
+          };
+          return acc;
+        }, {})
+    : {}),
+};
+
+export const controllerPolicies: SessionPolicies = {
+  contracts: controllerContractPolicies,
+  messages: [],
+};

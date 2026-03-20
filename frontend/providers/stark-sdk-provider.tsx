@@ -1,8 +1,11 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { ChainId, OnboardStrategy, StarkZap } from "starkzap";
-import { cartridgePolicies, web3Config } from "@/lib/web3-config";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useAccount, useConnect, useDisconnect } from "@starknet-react/core";
+import { ControllerConnector } from "@cartridge/connector";
+import { ChainId, StarkZap } from "starkzap";
+import { controllerPolicies, web3Config } from "@/lib/web3-config";
+import { createStarkzapWallet } from "@/lib/starkzap-wallet-adapter";
 
 type StarkZapWallet = {
   address?: string;
@@ -22,6 +25,11 @@ type StarkSdkContextValue = {
 };
 
 const StarkSdkContext = createContext<StarkSdkContextValue | null>(null);
+
+export const controllerConnector = new ControllerConnector({
+  policies: controllerPolicies,
+  chains: [{ rpcUrl: web3Config.rpcUrl }],
+});
 
 function resolveChainId() {
   switch (web3Config.chainId) {
@@ -47,43 +55,53 @@ export function StarkSdkProvider({ children }: { children: React.ReactNode }) {
       }),
     []
   );
-  const [wallet, setWallet] = useState<StarkZapWallet | null>(null);
-  const [status, setStatus] = useState<StarkSdkContextValue["status"]>("idle");
+  const { connect: connectWallet, connectors } = useConnect();
+  const { disconnect: disconnectWallet } = useDisconnect();
+  const { account, address, status: accountStatus } = useAccount();
   const [error, setError] = useState<string | undefined>(undefined);
 
+  const controller = useMemo(
+    () => connectors.find((c) => c.id === "controller"),
+    [connectors]
+  );
+
+  const wallet = useMemo<StarkZapWallet | null>(() => {
+    const adapter = createStarkzapWallet(account);
+    return adapter as StarkZapWallet | null;
+  }, [account]);
+
+  const status = useMemo<StarkSdkContextValue["status"]>(() => {
+    if (error) return "error";
+    if (accountStatus === "connected") return "connected";
+    if (accountStatus === "connecting" || accountStatus === "reconnecting") return "connecting";
+    return "idle";
+  }, [accountStatus, error]);
+
+  useEffect(() => {
+    if (accountStatus === "connected" && error) {
+      setError(undefined);
+    }
+  }, [accountStatus, error]);
+
   const connect = useCallback(async () => {
-    setStatus("connecting");
     setError(undefined);
+    if (!controller) {
+      setError("Cartridge connector unavailable");
+      return;
+    }
     try {
-      console.log("Cartridge Policies:", cartridgePolicies);
-      const { wallet: connectedWallet } = await sdk.onboard({
-        strategy: OnboardStrategy.Cartridge,
-        cartridge: {
-          policies: cartridgePolicies,
-        },
-        feeMode: "sponsored",
-        deploy: "if_needed",
-      });
-
-      if (connectedWallet?.ensureReady) {
-        await connectedWallet.ensureReady({ deploy: "if_needed" });
-      }
-
-      setWallet(connectedWallet as StarkZapWallet);
-      setStatus("connected");
+      await connectWallet({ connector: controller });
     } catch (err) {
-      console.error("Cartridge SDK Connection Error:", err);
+      console.error("Cartridge Connection Error:", err);
       const message = err instanceof Error ? err.message : "Failed to connect";
       setError(message);
-      setStatus("error");
     }
-  }, [sdk]);
+  }, [connectWallet, controller]);
 
   const disconnect = useCallback(() => {
-    setWallet(null);
-    setStatus("idle");
+    disconnectWallet();
     setError(undefined);
-  }, []);
+  }, [disconnectWallet]);
 
   const value = useMemo<StarkSdkContextValue>(
     () => ({
@@ -91,11 +109,11 @@ export function StarkSdkProvider({ children }: { children: React.ReactNode }) {
       wallet,
       status,
       error,
-      address: getWalletAddress(wallet),
+      address: address ?? getWalletAddress(wallet),
       connect,
       disconnect,
     }),
-    [sdk, wallet, status, error, connect, disconnect]
+    [sdk, wallet, status, error, address, connect, disconnect]
   );
 
   return <StarkSdkContext.Provider value={value}>{children}</StarkSdkContext.Provider>;
