@@ -1,4 +1,3 @@
-import type { SessionPolicies } from "@cartridge/controller";
 
 export type SupportedChain = "SEPOLIA" | "MAINNET" | "KATANA";
 
@@ -155,7 +154,7 @@ const escrowPolicyAddress = isPolicyAddress(web3Config.escrowAddress)
   ? normalizeAddress(web3Config.escrowAddress)
   : "";
 
-const controllerContractPolicies: SessionPolicies["contracts"] = {
+const controllerContractPolicies: any = {
   ...(escrowPolicyAddress
     ? {
         [escrowPolicyAddress]: {
@@ -170,7 +169,7 @@ const controllerContractPolicies: SessionPolicies["contracts"] = {
   ...(escrowPolicyAddress
     ? supportedTokens
         .filter((token) => isPolicyAddress(token.address))
-        .reduce<SessionPolicies["contracts"]>((acc, token) => {
+        .reduce<any>((acc, token) => {
           acc[normalizeAddress(token.address)] = {
             name: `${token.symbol} Approvals`,
             methods: [
@@ -187,7 +186,7 @@ const controllerContractPolicies: SessionPolicies["contracts"] = {
     : {}),
 };
 
-export const controllerPolicies: SessionPolicies = {
+export const controllerPolicies: any = {
   contracts: controllerContractPolicies,
   messages: [],
 };

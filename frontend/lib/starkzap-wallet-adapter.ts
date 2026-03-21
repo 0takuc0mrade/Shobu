@@ -75,6 +75,7 @@ export class StarkzapAccountWallet extends BaseWallet {
     return this.account;
   }
 
+  // @ts-ignore
   getProvider(): RpcProvider {
     return this.provider;
   }
