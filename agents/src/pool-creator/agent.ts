@@ -220,41 +220,58 @@ agent.addCapability({
     const results: string[] = []
     let created = 0
 
-    const { ToriiClient } = await import('@dojoengine/torii-client')
-
     for (const game of games) {
       if (created >= config.MAX_POOLS_PER_TICK) break
 
       try {
-        const client = new ToriiClient({ toriiUrl: game.toriiUrl, worldAddress: game.worldAddress })
         const matchesReady = new Map<number, { p1: string; p2: string }>()
-        // Fetch all TokenBalances globally for this game's session token 
-        let cursor: string | undefined = undefined
-        const allBalances: any[] = []
-        do {
-          const page: any = await client.getTokenBalances({
-            contract_addresses: [game.tokenAddress],
-            account_addresses: [], // Empty fetches all players
-            token_ids: [],
-            pagination: { limit: 1000, cursor, direction: 'Forward', order_by: [] }
-          })
-          if (Array.isArray(page?.items)) allBalances.push(...page.items)
-          cursor = page?.next_cursor
-        } while (cursor)
+        const graphqlUrl = game.toriiUrl.replace(/\/graphql\/?$/, '') + '/graphql'
 
-        // Group by token_id to find 1v1 lobbies (ERC1155 generic approach)
-        const balancesByToken = new Map<string, string[]>()
-        for (const bal of allBalances) {
-          const tId = bal.token_id ?? '0x0'
-          if (!balancesByToken.has(tId)) balancesByToken.set(tId, [])
-          balancesByToken.get(tId)!.push(bal.account_address!)
-        }
-        for (const [tokenId, players] of balancesByToken.entries()) {
-          if (players.length !== 2) continue
-          try {
-            const mId = Number(BigInt(tokenId))
-            matchesReady.set(mId, { p1: tokenId, p2: tokenId })
-          } catch {}
+        // Fetch token balances via GraphQL (replaces native ToriiClient.getTokenBalances)
+        try {
+          const balanceRes = await fetch(graphqlUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: `{
+                tokenBalances(
+                  accountAddresses: []
+                  contractAddresses: ["${game.tokenAddress}"]
+                  limit: 1000
+                ) {
+                  edges {
+                    node {
+                      tokenId
+                      accountAddress
+                      balance
+                    }
+                  }
+                }
+              }`
+            })
+          })
+          if (balanceRes.ok) {
+            const balanceData = await balanceRes.json()
+            const edges = balanceData?.data?.tokenBalances?.edges ?? []
+            const allBalances = edges.map((e: any) => e.node).filter(Boolean)
+
+            // Group by token_id to find 1v1 lobbies (ERC1155 generic approach)
+            const balancesByToken = new Map<string, string[]>()
+            for (const bal of allBalances) {
+              const tId = bal.tokenId ?? '0x0'
+              if (!balancesByToken.has(tId)) balancesByToken.set(tId, [])
+              balancesByToken.get(tId)!.push(bal.accountAddress!)
+            }
+            for (const [tokenId, players] of balancesByToken.entries()) {
+              if (players.length !== 2) continue
+              try {
+                const mId = Number(BigInt(tokenId))
+                matchesReady.set(mId, { p1: tokenId, p2: tokenId })
+              } catch {}
+            }
+          }
+        } catch (err: any) {
+          console.log(`Token balance GraphQL query failed for ${game.toriiUrl}: ${err.message}`)
         }
 
         // Generic ERC721 Approach: Dynamically query Torii GraphQL for SessionLinked models

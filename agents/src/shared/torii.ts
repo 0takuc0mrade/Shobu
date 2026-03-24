@@ -1,6 +1,4 @@
-import { init, ToriiQueryBuilder, MemberClause, KeysClause } from '@dojoengine/sdk/node'
 import { getConfig } from './config.js'
-import { MODELS, POOL_STATUS } from './constants.js'
 
 // -----------------------------------------------------------------------
 // Types representing on-chain models (matches Cairo structs)
@@ -49,52 +47,72 @@ export interface BetModel {
 }
 
 // -----------------------------------------------------------------------
-// SDK singleton
+// GraphQL fetch helper (replaces @dojoengine/sdk)
 // -----------------------------------------------------------------------
 
-let _sdk: Awaited<ReturnType<typeof init>> | null = null
+async function graphqlQuery<T = any>(
+  query: string,
+  variables?: Record<string, any>,
+  url?: string
+): Promise<T> {
+  const toriiUrl = url ?? getConfig().TORII_URL
+  const graphqlUrl = toriiUrl.replace(/\/graphql\/?$/, '') + '/graphql'
 
-export async function initDojoSdk() {
-  if (_sdk) return _sdk
-  const config = getConfig()
-  _sdk = await init({
-    client: {
-      worldAddress: config.WORLD_ADDRESS,
-      toriiUrl: config.TORII_URL,
-    },
-    domain: {
-      name: 'Shobu',
-      version: '1.0',
-      chainId: 'SN_SEPOLIA',
-      revision: '1',
-    },
+  const res = await fetch(graphqlUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
   })
-  return _sdk
-}
 
-// -----------------------------------------------------------------------
-// Entity extraction helper
-// -----------------------------------------------------------------------
-
-function extractModels<T>(
-  result: any,
-  namespace: string,
-  model: string
-): T[] {
-  const items =
-    typeof result?.getItems === 'function'
-      ? result.getItems()
-      : result?.items ?? []
-  const models: T[] = []
-  for (const item of items) {
-    const m =
-      item?.models?.[namespace]?.[model] ??
-      item?.models?.[`${namespace}-${model}`] ??
-      null
-    if (m) models.push(m as T)
+  if (!res.ok) {
+    throw new Error(`Torii GraphQL error: ${res.status} ${res.statusText}`)
   }
-  return models
+
+  const json = await res.json()
+  if (json.errors?.length) {
+    throw new Error(`Torii GraphQL: ${json.errors[0].message}`)
+  }
+  return json.data as T
 }
+
+// -----------------------------------------------------------------------
+// Edge extraction helper
+// -----------------------------------------------------------------------
+
+function extractEdges<T>(data: any, queryName: string): T[] {
+  const edges = data?.[queryName]?.edges ?? []
+  return edges.map((e: any) => e.node).filter(Boolean) as T[]
+}
+
+// -----------------------------------------------------------------------
+// Pool field fragment (avoids repetition)
+// -----------------------------------------------------------------------
+
+const POOL_FIELDS = `
+  pool_id
+  game_world
+  game_id
+  token
+  status
+  settlement_mode
+  egs_token_id_p1
+  egs_token_id_p2
+  total_pot
+  total_on_p1
+  total_on_p2
+  bettor_count_p1
+  bettor_count_p2
+  winning_player
+  winning_total
+  distributable_amount
+  claimed_amount
+  claimed_winner_count
+  protocol_fee_amount
+  creator
+  deadline
+  player_1
+  player_2
+`
 
 // -----------------------------------------------------------------------
 // Query helpers
@@ -104,45 +122,42 @@ function extractModels<T>(
  * Fetch all open betting pools (status == 0).
  */
 export async function fetchOpenPools(): Promise<BettingPoolModel[]> {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withClause(
-      MemberClause(MODELS.BettingPool, 'status', 'Eq', POOL_STATUS.OPEN).build()
-    )
-    .withLimit(1000)
-  const result = await sdk.getEntities({ query })
-  return extractModels<BettingPoolModel>(result, 'shobu', 'BettingPool')
+  const data = await graphqlQuery(`
+    query {
+      shobuBettingPoolModels(where: { status: 0 }, limit: 1000) {
+        edges { node { ${POOL_FIELDS} } }
+      }
+    }
+  `)
+  return extractEdges<BettingPoolModel>(data, 'shobuBettingPoolModels')
 }
 
 /**
  * Fetch all settled betting pools (status == 1).
  */
 export async function fetchSettledPools(): Promise<BettingPoolModel[]> {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withClause(
-      MemberClause(
-        MODELS.BettingPool,
-        'status',
-        'Eq',
-        POOL_STATUS.SETTLED
-      ).build()
-    )
-    .withLimit(1000)
-  const result = await sdk.getEntities({ query })
-  return extractModels<BettingPoolModel>(result, 'shobu', 'BettingPool')
+  const data = await graphqlQuery(`
+    query {
+      shobuBettingPoolModels(where: { status: 1 }, limit: 1000) {
+        edges { node { ${POOL_FIELDS} } }
+      }
+    }
+  `)
+  return extractEdges<BettingPoolModel>(data, 'shobuBettingPoolModels')
 }
 
 /**
  * Fetch all pools regardless of status.
  */
 export async function fetchAllPools(): Promise<BettingPoolModel[]> {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withEntityModels([MODELS.BettingPool])
-    .withLimit(1000)
-  const result = await sdk.getEntities({ query })
-  return extractModels<BettingPoolModel>(result, 'shobu', 'BettingPool')
+  const data = await graphqlQuery(`
+    query {
+      shobuBettingPoolModels(limit: 1000) {
+        edges { node { ${POOL_FIELDS} } }
+      }
+    }
+  `)
+  return extractEdges<BettingPoolModel>(data, 'shobuBettingPoolModels')
 }
 
 /**
@@ -151,23 +166,15 @@ export async function fetchAllPools(): Promise<BettingPoolModel[]> {
 export async function fetchPoolById(
   poolId: number
 ): Promise<BettingPoolModel | null> {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withClause(
-      KeysClause(
-        [MODELS.BettingPool],
-        [poolId.toString()],
-        'FixedLen'
-      ).build()
-    )
-    .withLimit(1)
-  const result = await sdk.getEntities({ query })
-  const models = extractModels<BettingPoolModel>(
-    result,
-    'shobu',
-    'BettingPool'
-  )
-  return models[0] ?? null
+  const data = await graphqlQuery(`
+    query {
+      shobuBettingPoolModels(where: { pool_id: ${poolId} }, limit: 1) {
+        edges { node { ${POOL_FIELDS} } }
+      }
+    }
+  `)
+  const pools = extractEdges<BettingPoolModel>(data, 'shobuBettingPoolModels')
+  return pools[0] ?? null
 }
 
 /**
@@ -176,23 +183,22 @@ export async function fetchPoolById(
 export async function fetchOddsSnapshot(
   poolId: number
 ): Promise<OddsSnapshotModel | null> {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withClause(
-      KeysClause(
-        [MODELS.OddsSnapshot],
-        [poolId.toString()],
-        'FixedLen'
-      ).build()
-    )
-    .withLimit(1)
-  const result = await sdk.getEntities({ query })
-  const models = extractModels<OddsSnapshotModel>(
-    result,
-    'shobu',
-    'OddsSnapshot'
-  )
-  return models[0] ?? null
+  const data = await graphqlQuery(`
+    query {
+      shobuOddsSnapshotModels(where: { pool_id: ${poolId} }, limit: 1) {
+        edges {
+          node {
+            pool_id
+            implied_prob_p1
+            implied_prob_p2
+            last_updated
+          }
+        }
+      }
+    }
+  `)
+  const snapshots = extractEdges<OddsSnapshotModel>(data, 'shobuOddsSnapshotModels')
+  return snapshots[0] ?? null
 }
 
 /**
@@ -201,47 +207,68 @@ export async function fetchOddsSnapshot(
 export async function fetchBetsForPool(
   poolId: number
 ): Promise<BetModel[]> {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withClause(
-      MemberClause(MODELS.Bet, 'pool_id', 'Eq', poolId).build()
-    )
-    .withLimit(1000)
-  const result = await sdk.getEntities({ query })
-  return extractModels<BetModel>(result, 'shobu', 'Bet')
+  const data = await graphqlQuery(`
+    query {
+      shobuBetModels(where: { pool_id: ${poolId} }, limit: 1000) {
+        edges {
+          node {
+            pool_id
+            bettor
+            predicted_winner
+            amount
+            claimed
+            placed_at
+          }
+        }
+      }
+    }
+  `)
+  return extractEdges<BetModel>(data, 'shobuBetModels')
 }
 
 /**
- * Subscribe to real-time pool changes.
+ * Subscribe to real-time pool changes (polling-based for Termux compatibility).
+ *
+ * The native SDK subscription used WebSocket/gRPC which requires WASM binaries.
+ * This replacement polls the GraphQL endpoint every `intervalMs` milliseconds.
  */
 export async function subscribeToPoolChanges(
-  callback: (pools: BettingPoolModel[]) => void
+  callback: (pools: BettingPoolModel[]) => void,
+  intervalMs = 15_000
 ) {
-  const sdk = await initDojoSdk()
-  const query = new ToriiQueryBuilder()
-    .withEntityModels([MODELS.BettingPool])
-    .includeHashedKeys()
+  let lastSeen = new Map<number, string>()
 
-  const [_initial, subscription] = await sdk.subscribeEntityQuery({
-    query,
-    callback: ({ data, error }) => {
-      if (error) {
-        console.error('[torii] subscription error:', error)
-        return
+  const poll = async () => {
+    try {
+      const pools = await fetchAllPools()
+      // Detect changes by comparing pool state hashes
+      const changed: BettingPoolModel[] = []
+      for (const pool of pools) {
+        const key = pool.pool_id
+        const hash = JSON.stringify(pool)
+        if (lastSeen.get(key) !== hash) {
+          changed.push(pool)
+          lastSeen.set(key, hash)
+        }
       }
-      if (data) {
-        const pools = data
-          .map((entity: any) => {
-            return (
-              entity?.models?.shobu?.BettingPool ??
-              entity?.models?.['shobu-BettingPool'] ??
-              null
-            )
-          })
-          .filter(Boolean) as BettingPoolModel[]
-        if (pools.length > 0) callback(pools)
-      }
-    },
-  })
-  return subscription
+      if (changed.length > 0) callback(changed)
+    } catch (err) {
+      console.error('[torii] polling error:', err)
+    }
+  }
+
+  // Initial fetch
+  await poll()
+
+  // Return an interval handle so callers can cancel
+  const handle = setInterval(poll, intervalMs)
+  return {
+    cancel: () => clearInterval(handle),
+  }
 }
+
+// -----------------------------------------------------------------------
+// GraphQL query helper (exposed for pool-creator's game-specific queries)
+// -----------------------------------------------------------------------
+
+export { graphqlQuery }
