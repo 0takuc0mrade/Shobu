@@ -117,6 +117,36 @@ Provide a concise but insightful analysis covering:
   },
 })
 
+// --- Capability: chat_analysis ---
+agent.addCapability({
+  name: 'chat_analysis',
+  description:
+    'Answer natural language questions about the Shobu betting market, specific pools, or odds. Use this to chat with users in the OpenServ workspace.',
+  inputSchema: z.object({
+    question: z.string().describe("The user's question about the betting market"),
+  }),
+  async run({ args, action }) {
+    const [openPools, settledPools] = await Promise.all([
+      fetchOpenPools(),
+      fetchSettledPools(),
+    ])
+    
+    // We fetch a high level overview to provide context to the LLM
+    const contextStr = `Open Pools: ${openPools.length}, Settled Pools: ${settledPools.length}. Note: You can use other capabilities like get_pool_odds or analyze_pool if the user asks for a specific pool ID.`;
+
+    const answer = await this.generate({
+      prompt: `You are the Shobu Analyst agent, chatting with a user in the OpenServ workspace.
+Context: ${contextStr}
+User question: "${args.question}"
+
+Answer the user directly and concisely. If they ask about a specific pool you don't have the data for here, tell them you can check it using the analyze_pool or get_pool_odds capability.`,
+      action,
+    })
+
+    return answer;
+  },
+})
+
 // --- Capability: market_overview ---
 agent.addCapability({
   name: 'market_overview',

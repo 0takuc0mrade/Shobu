@@ -342,7 +342,7 @@ async function main() {
     },
     workflow: {
       name: 'Shobu Protocol Manager',
-      trigger: triggers.webhook({ waitForCompletion: true, timeout: 900 }),
+      trigger: triggers.cron({ schedule: '*/10 * * * *' }),
       task: {
         description:
           'Coordinate the full lifecycle of betting pools on the Shobu protocol: scan game feeds for new games, create betting pools, monitor and settle finished games, and generate market reports — all in a single coordinated workflow.',
