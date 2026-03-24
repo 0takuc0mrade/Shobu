@@ -21,14 +21,15 @@ const DEFAULT_STRK20_ADDRESS =
 
 const resolvedChainId = (process.env.NEXT_PUBLIC_CHAIN_ID ?? "SEPOLIA") as SupportedChain;
 
-function funFactoryNetwork(chainId: SupportedChain) {
-  if (chainId === "MAINNET") return "mainnet";
-  return "sepolia";
+function denshokanGamesApi(chainId: SupportedChain) {
+  if (chainId === "MAINNET") {
+    return "https://denshokan-api-production.up.railway.app/games";
+  }
+  // Fun Factory uses a dedicated host for Sepolia
+  return "https://denshokan-api-sepolia.up.railway.app/games";
 }
 
-const DEFAULT_EGS_GAMES_API = `https://denshokan-api-production.up.railway.app/games?network=${funFactoryNetwork(
-  resolvedChainId
-)}`;
+const DEFAULT_EGS_GAMES_API = denshokanGamesApi(resolvedChainId);
 
 export const web3Config = {
   rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ?? DEFAULT_RPC_URL,

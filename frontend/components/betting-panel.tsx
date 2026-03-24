@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Sparkles, BrainCircuit } from 'lucide-react';
 import { BetSlip } from './bet-slip';
 import { useBettingPool, usePoolOdds } from '@/hooks/use-dojo-betting';
 import { web3Config } from '@/lib/web3-config';
@@ -76,6 +77,24 @@ export function BettingPanel() {
           <div className="text-xs text-gray-500 text-center pt-2">
             Odds update every 5 seconds
           </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Market Insight */}
+      <Card className="card-border glass-card relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-r from-neon-purple/5 to-neon-blue/5 group-hover:from-neon-purple/10 group-hover:to-neon-blue/10 transition-colors duration-500" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-foreground">
+            <BrainCircuit className="w-4 h-4 text-neon-purple" />
+            Shobu Analyst AI
+            <span className="w-1.5 h-1.5 rounded-full bg-neon-purple animate-pulse ml-auto" />
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">Autonomous Market Insight</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-gray-300 leading-relaxed italic">
+            "Market liquidity is currently heavily weighted towards the Challenger. The current odds offer a +15% expected value premium on the Champion based on historical matchup data."
+          </p>
         </CardContent>
       </Card>
 

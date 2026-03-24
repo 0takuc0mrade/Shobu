@@ -4,6 +4,8 @@ dotenv.config()
 import { Agent, run } from '@openserv-labs/sdk'
 import { provision, triggers } from '@openserv-labs/client'
 import { z } from 'zod'
+import * as fs from 'fs'
+import * as path from 'path'
 
 import { loadConfig } from '../shared/config.js'
 import { initSession, normalizeAddress } from '../shared/starknet.js'
@@ -197,6 +199,86 @@ Cover:
   },
 })
 
+// --- Capability: post_new_markets ---
+agent.addCapability({
+  name: 'post_new_markets',
+  description:
+    'Automatically scans for new betting pools and posts an AI-generated odds analysis to Discord.',
+  inputSchema: z.object({}),
+  async run({ action }) {
+    const config = loadConfig()
+    const openPools = await fetchOpenPools()
+
+    if (openPools.length === 0) return 'No open pools found.'
+
+    const statePath = path.resolve('.posted_pools.json')
+    let postedIds: string[] = []
+    try {
+      if (fs.existsSync(statePath)) {
+        postedIds = JSON.parse(fs.readFileSync(statePath, 'utf-8'))
+      }
+    } catch (err) {
+      console.warn('Could not read posted pools state:', err)
+    }
+
+    const newPools = openPools.filter((p) => !postedIds.includes(p.pool_id.toString()))
+    if (newPools.length === 0) return 'No new pools to post about.'
+
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL
+    if (!webhookUrl) return 'DISCORD_WEBHOOK_URL not configured. Skipped posting.'
+
+    let postedCount = 0
+    for (const pool of newPools) {
+      try {
+        const odds = await fetchOddsSnapshot(pool.pool_id)
+        const summary = formatPool(pool, odds)
+
+        const analysis = await this.generate({
+          prompt: `You are the Shobu Analyst. A new betting pool has just opened!
+Raw data: ${summary}
+
+Write a very short, exciting social media post (Discord style) announcing this match. Include the current odds, pool size, and a call to action to place bets. Keep it under 500 characters. Use emojis.`,
+          action,
+        })
+
+        // Send to Discord Webhook
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'Shobu Analyst Agent',
+            avatar_url: 'https://openserv.ai/favicon.ico',
+            embeds: [
+              {
+                title: `🎯 New Match: Pool #${pool.pool_id}`,
+                description: analysis,
+                color: 0x3b82f6,
+                fields: [
+                  { name: 'Pot Size', value: `${pool.total_pot} tokens`, inline: true },
+                  { name: 'Mode', value: Number(pool.settlement_mode) === SETTLEMENT_MODE.EGS ? 'EGS' : 'Direct', inline: true }
+                ]
+              }
+            ]
+          }),
+        })
+
+        postedIds.push(pool.pool_id.toString())
+        postedCount++
+      } catch (err) {
+        console.error(`Failed to post for pool ${pool.pool_id}:`, err)
+      }
+    }
+
+    try {
+      fs.writeFileSync(statePath, JSON.stringify(postedIds, null, 2))
+    } catch (err) {
+      console.warn('Could not save posted pools state:', err)
+    }
+
+    return `Successfully analyzed and posted ${postedCount} new markets.`
+  },
+})
+
 // -----------------------------------------------------------------------
 // Provision & Run
 // -----------------------------------------------------------------------
@@ -220,10 +302,10 @@ async function main() {
     },
     workflow: {
       name: 'Shobu Market Analyst',
-      trigger: triggers.webhook({ waitForCompletion: true, timeout: 600 }),
+      trigger: triggers.cron({ schedule: '*/5 * * * *' }),
       task: {
         description:
-          'Analyze betting pools on the Shobu protocol — providing odds breakdowns, liquidity assessments, bet distribution analysis, and AI-powered market insights on demand.',
+          'Monitor the Shobu betting market every 5 minutes. Automatically detect newly opened betting streams, run AI-powered analysis on the initial odds, and broadcast the insights to a Discord community channel.',
       },
     },
   })

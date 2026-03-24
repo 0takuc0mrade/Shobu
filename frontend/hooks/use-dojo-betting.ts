@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { KeysClause, ToriiQueryBuilder } from "@dojoengine/sdk";
-import { useDojoSdk } from "@/providers/dojo-provider";
+import { web3Config } from "@/lib/web3-config";
 
+// -----------------------------------------------------------------------
+// Data Models
+// -----------------------------------------------------------------------
 export type BettingPoolModel = {
   pool_id?: string;
   game_world?: string;
@@ -43,179 +45,159 @@ export type DenshokanConfigModel = {
   enabled?: boolean;
 };
 
-function toFelt(value: number) {
-  return `0x${value.toString(16)}`;
-}
-
-function extractModel(entity: any, modelName: string) {
-  if (!entity?.models) return null;
-  const [namespace, name] = modelName.split("-");
-  return entity.models?.[namespace]?.[name] ?? entity.models?.[modelName] ?? null;
-}
-
-function buildKeyQuery(modelName: string, key: string) {
-  const model = modelName as `${string}-${string}`;
-  return new ToriiQueryBuilder().withClause(
-    KeysClause([model], [key], "FixedLen").build()
-  );
-}
-
-async function fetchSingleModel(sdk: any, modelName: string, key: string) {
-  const result = await sdk.getEntities({
-    query: buildKeyQuery(modelName, key),
+// -----------------------------------------------------------------------
+// GraphQL Fetch Helper
+// -----------------------------------------------------------------------
+async function graphqlQuery<T = any>(
+  query: string,
+  variables?: Record<string, any>,
+  toriiUrl: string = web3Config.toriiUrl
+): Promise<T> {
+  const graphqlUrl = toriiUrl.replace(/\/graphql\/?$/, "") + "/graphql";
+  const res = await fetch(graphqlUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, variables }),
   });
-  const entity = result?.items?.[0];
-  return extractModel(entity, modelName);
+
+  if (!res.ok) throw new Error(`Torii GraphQL error: ${res.status}`);
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(`Torii GraphQL: ${json.errors[0].message}`);
+  return json.data as T;
 }
 
-function useDojoModel<T>(modelName: string, key: string) {
-  const { sdk, status } = useDojoSdk();
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!sdk || status !== "ready") return;
-    const currentSdk = sdk;
-    let active = true;
-    setLoading(true);
-    setError(undefined);
-
-    async function boot() {
-      try {
-        const initial = (await fetchSingleModel(currentSdk, modelName, key)) as T | null;
-        if (active) {
-          setData(initial);
-          setLoading(false);
-        }
-
-        const query = buildKeyQuery(modelName, key);
-        const queryWithKeys =
-          typeof (query as any).includeHashedKeys === "function"
-            ? (query as any).includeHashedKeys()
-            : query;
-
-        const [, subscription] = await currentSdk.subscribeEntityQuery({
-          query: queryWithKeys,
-          callback: ({ data: updates }: { data?: any[] }) => {
-            if (!updates || !active) return;
-            const nextEntity = updates[0];
-            const nextModel = extractModel(nextEntity, modelName) as T | null;
-            if (nextModel) {
-              setData(nextModel);
-            }
-          },
-        });
-
-        return () => {
-          subscription?.cancel?.();
-        };
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Dojo query failed");
-        setLoading(false);
-      }
-    }
-
-    let cleanup: (() => void) | undefined;
-    boot().then((dispose) => {
-      if (typeof dispose === "function") cleanup = dispose;
-    });
-    return () => {
-      active = false;
-      cleanup?.();
-    };
-  }, [sdk, status, modelName, key]);
-
-  return { data, loading, error };
+function extractEdges<T>(data: any, queryName: string): T[] {
+  const edges = data?.[queryName]?.edges ?? [];
+  return edges.map((e: any) => e.node).filter(Boolean) as T[];
 }
 
-export function useBettingPool(poolId: number) {
-  const key = useMemo(() => toFelt(poolId), [poolId]);
-  return useDojoModel<BettingPoolModel>("shobu-BettingPool", key);
-}
+const POOL_FIELDS = `
+  pool_id game_world game_id token status settlement_mode
+  egs_token_id_p1 egs_token_id_p2 total_pot total_on_p1 total_on_p2
+  bettor_count_p1 bettor_count_p2 winning_player winning_total
+  distributable_amount claimed_amount claimed_winner_count
+  protocol_fee_amount creator deadline player_1 player_2
+`;
 
-function extractPoolModel(entity: any): BettingPoolModel | null {
-  if (!entity?.models) return null;
-  return entity.models?.shobu?.BettingPool ?? entity.models?.["shobu-BettingPool"] ?? null;
-}
-
+// -----------------------------------------------------------------------
+// Hooks
+// -----------------------------------------------------------------------
 export function useAllBettingPools() {
-  const { sdk, status } = useDojoSdk();
   const [pools, setPools] = useState<BettingPoolModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!sdk || status !== "ready") return;
-    const currentSdk = sdk;
     let active = true;
     setLoading(true);
-    setError(undefined);
 
-    async function boot() {
+    async function fetchPools() {
       try {
-        const query = new ToriiQueryBuilder().withEntityModels(["shobu-BettingPool"]).withLimit(1000);
-        const result = await currentSdk.getEntities({ query });
-        const resultAny = result as any;
-        const items =
-          typeof resultAny?.getItems === "function" ? resultAny.getItems() : resultAny?.items ?? [];
-        const nextPools = items
-          .map((item: any) => extractPoolModel(item))
-          .filter(Boolean) as BettingPoolModel[];
-
+        const data = await graphqlQuery(`
+          query {
+            shobuBettingPoolModels(limit: 1000) {
+              edges { node { ${POOL_FIELDS} } }
+            }
+          }
+        `);
+        const fetched = extractEdges<BettingPoolModel>(data, "shobuBettingPoolModels");
         if (active) {
-          setPools(nextPools);
+          setPools(fetched);
+          setLoading(false);
+          setError(undefined);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Failed to fetch pools");
           setLoading(false);
         }
-
-        const queryWithKeys =
-          typeof (query as any).includeHashedKeys === "function"
-            ? (query as any).includeHashedKeys()
-            : query;
-
-        const [, subscription] = await currentSdk.subscribeEntityQuery({
-          query: queryWithKeys,
-          callback: ({ data: updates }: { data?: any[] }) => {
-            if (!active || !updates || updates.length === 0) return;
-            setPools((prev) => {
-              const copy = [...prev];
-              for (const update of updates) {
-                const model = extractPoolModel(update);
-                if (!model?.pool_id) continue;
-                const idx = copy.findIndex((p) => p.pool_id === model.pool_id);
-                if (idx >= 0) copy[idx] = model;
-                else copy.push(model);
-              }
-              return copy;
-            });
-          },
-        });
-
-        return () => subscription?.cancel?.();
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to fetch pools");
-        setLoading(false);
       }
     }
 
-    let cleanup: (() => void) | undefined;
-    boot().then((dispose) => {
-      if (typeof dispose === "function") cleanup = dispose;
-    });
+    fetchPools();
+    const interval = setInterval(fetchPools, 15000);
     return () => {
       active = false;
-      cleanup?.();
+      clearInterval(interval);
     };
-  }, [sdk, status]);
+  }, []);
 
   return { pools, loading, error };
 }
 
+export function useBettingPool(poolId: number) {
+  const [data, setData] = useState<BettingPoolModel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+
+    async function fetchPool() {
+      try {
+        const res = await graphqlQuery(`
+          query {
+            shobuBettingPoolModels(where: { pool_id: ${poolId} }, limit: 1) {
+              edges { node { ${POOL_FIELDS} } }
+            }
+          }
+        `);
+        const item = extractEdges<BettingPoolModel>(res, "shobuBettingPoolModels")[0] ?? null;
+        if (active) {
+          setData(item);
+          setLoading(false);
+          setError(undefined);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Failed to fetch pool");
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchPool();
+    const interval = setInterval(fetchPool, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [poolId]);
+
+  return { data, loading, error };
+}
+
 export function useOddsSnapshot(poolId: number) {
-  const key = useMemo(() => toFelt(poolId), [poolId]);
-  return useDojoModel<OddsSnapshotModel>("shobu-OddsSnapshot", key);
+  const [data, setData] = useState<OddsSnapshotModel | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchOdds() {
+      try {
+        const res = await graphqlQuery(`
+          query {
+            shobuOddsSnapshotModels(where: { pool_id: ${poolId} }, limit: 1) {
+              edges { node { pool_id implied_prob_p1 implied_prob_p2 last_updated } }
+            }
+          }
+        `);
+        const item = extractEdges<OddsSnapshotModel>(res, "shobuOddsSnapshotModels")[0] ?? null;
+        if (active) setData(item);
+      } catch (err) {
+        // ignore odds fetch errors silently
+      }
+    }
+
+    fetchOdds();
+    const interval = setInterval(fetchOdds, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [poolId]);
+
+  return { data, loading: !data };
 }
 
 export function usePoolOdds(poolId: number) {
@@ -237,6 +219,26 @@ export function usePoolOdds(poolId: number) {
 }
 
 export function useDenshokanConfig() {
-  const key = useMemo(() => toFelt(1), []);
-  return useDojoModel<DenshokanConfigModel>("shobu-DenshokanConfig", key);
+  const [data, setData] = useState<DenshokanConfigModel | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchConfig() {
+      try {
+        const res = await graphqlQuery(`
+          query {
+            shobuDenshokanConfigModels(limit: 1) {
+              edges { node { id token_contract enabled } }
+            }
+          }
+        `);
+        const item = extractEdges<DenshokanConfigModel>(res, "shobuDenshokanConfigModels")[0] ?? null;
+        if (active) setData(item);
+      } catch (err) {
+      }
+    }
+    fetchConfig();
+  }, []);
+
+  return { data, loading: false, error: undefined };
 }

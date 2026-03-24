@@ -60,10 +60,10 @@ export function HeroBanner() {
           ) : (
             <>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold neon-glow leading-tight">
-                Shōbu × Budokan
+                Shōbu AI Escrow Protocol
               </h2>
               <p className="text-sm sm:text-base text-muted-foreground max-w-lg">
-                Bet on tournament outcomes, head-to-head matchups, and PvE leaderboard positions
+                Autonomous agent-driven betting on tournament outcomes, head-to-head matchups, and on-chain events. Verified odds, instant settlement.
               </p>
             </>
           )}
