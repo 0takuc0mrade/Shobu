@@ -1,11 +1,34 @@
 'use client';
 
+import { Suspense } from 'react';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LiveStats } from './live-stats';
+import { useBettingPool, useWeb2BettingPool } from '@/hooks/use-dojo-betting';
+import { web3Config } from '@/lib/web3-config';
+import { shortString } from 'starknet';
 
-export function MatchSpectator() {
+function MatchSpectatorContent() {
+  const searchParams = useSearchParams();
+  const poolIdParam = searchParams.get('poolId');
+  const poolId = poolIdParam ? parseInt(poolIdParam, 10) : web3Config.activePoolId;
+  const { data: pool } = useBettingPool(poolId);
+  const { data: web2Pool } = useWeb2BettingPool(poolId);
+
+  const safeDecode = (value: string | undefined, fallback: string) => {
+    if (!value) return fallback;
+    try {
+      return shortString.decodeShortString(value);
+    } catch {
+      return fallback;
+    }
+  };
+
+  const p1Name = safeDecode(web2Pool?.player_1_tag, 'Champion (A)');
+  const p2Name = safeDecode(web2Pool?.player_2_tag, 'Challenger (B)');
+
   return (
     <div className="flex flex-col h-full gap-4">
       {/* Video/Canvas Placeholder */}
@@ -28,15 +51,19 @@ export function MatchSpectator() {
         </div>
         
         {/* Match Info Overlay */}
-        <div className="absolute bottom-4 left-4 right-4 text-white">
-          <h2 className="text-xl font-bold text-balance">Shobu Tournament Round 3</h2>
-          <p className="text-sm text-gray-300 mt-1">Players: Champion vs Challenger</p>
+        <div className="absolute bottom-2 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4 text-white">
+          <h2 className="text-base sm:text-xl font-bold text-balance">
+            {pool?.game_id ? `Match #${pool.game_id}` : `Match Pool #${poolId}`}
+          </h2>
+          <p className="text-xs sm:text-sm text-gray-300 mt-0.5 sm:mt-1">
+            Players: {p1Name} vs {p2Name}
+          </p>
         </div>
       </div>
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="live-stats" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-3 bg-slate-900/50 border border-slate-700/50 rounded-lg">
+        <TabsList className="grid w-full grid-cols-3 bg-slate-900/50 border border-slate-700/50 rounded-lg text-xs sm:text-sm">
           <TabsTrigger 
             value="live-stats"
             className="data-[state=active]:bg-neon-purple data-[state=active]:text-slate-900 text-gray-300 hover:text-white transition-colors"
@@ -104,5 +131,13 @@ export function MatchSpectator() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export function MatchSpectator() {
+  return (
+    <Suspense fallback={<div className="w-full aspect-video flex items-center justify-center bg-slate-900 rounded-lg">Loading...</div>}>
+      <MatchSpectatorContent />
+    </Suspense>
   );
 }

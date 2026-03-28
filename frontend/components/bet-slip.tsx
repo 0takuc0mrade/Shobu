@@ -11,15 +11,17 @@ interface BetSlipProps {
   selectedPlayer: 'playerA' | 'playerB' | null;
   odds: number;
   poolId: number;
+  betAmount: string;
+  setBetAmount: (val: string) => void;
   pool?: {
     player_1?: string;
     player_2?: string;
     token?: string;
   } | null;
+  playerName?: string;
 }
 
-export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
-  const [betAmount, setBetAmount] = useState('100');
+export function BetSlip({ selectedPlayer, odds, poolId, betAmount, setBetAmount, pool, playerName }: BetSlipProps) {
   const poolToken = useMemo(() => {
     if (!pool?.token) return web3Config.tokens.strk;
     return getTokenByAddress(pool.token);
@@ -53,20 +55,21 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
     setBetAmount('100');
   };
 
-  const playerName = selectedPlayer === 'playerA' ? 'Champion (Player A)' : 'Challenger (Player B)';
+  const defaultPlayerName = selectedPlayer === 'playerA' ? 'Champion (Player A)' : 'Challenger (Player B)';
+  const displayPlayerName = playerName || defaultPlayerName;
   const playerColor = selectedPlayer === 'playerA' ? 'text-neon-purple' : 'text-neon-blue';
 
   return (
-    <Card className="card-border bg-slate-900/50 border-slate-700/50 flex flex-col h-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-neon-purple">Bet Slip</CardTitle>
+    <Card className="card-border bg-slate-900/50 border-slate-700/50 flex flex-col">
+      <CardHeader className="pb-2 sm:pb-3">
+        <CardTitle className="text-neon-purple text-sm sm:text-base">Bet Slip</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-4">
+      <CardContent className="flex-1 flex flex-col gap-3 sm:gap-4">
         {/* Selected Player Display */}
         {selectedPlayer ? (
           <div className={`p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 ${playerColor}`}>
             <p className="text-xs text-gray-400 mb-1">Selected Bet</p>
-            <p className="font-semibold">{playerName}</p>
+            <p className="font-semibold">{displayPlayerName}</p>
             <p className="text-sm mt-1">{odds.toFixed(2)}x odds</p>
           </div>
         ) : (
@@ -109,7 +112,7 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
         </div>
 
         {/* Payout Info */}
-        <div className="space-y-2 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+        <div className="space-y-2 p-2 sm:p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
           <div className="flex justify-between items-center">
             <span className="text-xs text-gray-400">Stake</span>
             <span className="text-sm font-semibold text-white">
@@ -140,7 +143,7 @@ export function BetSlip({ selectedPlayer, odds, poolId, pool }: BetSlipProps) {
         <Button
           onClick={handlePlaceBet}
           disabled={!selectedPlayer || amount <= 0 || isPlacing}
-          className="w-full mt-auto bg-gradient-to-r from-neon-purple to-neon-blue text-slate-900 font-bold py-6 text-base rounded-lg hover:shadow-lg hover:shadow-neon-purple/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full mt-auto bg-gradient-to-r from-neon-purple to-neon-blue text-slate-900 font-bold py-4 sm:py-6 text-sm sm:text-base rounded-lg hover:shadow-lg hover:shadow-neon-purple/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isPlacing ? (
             <span className="flex items-center gap-2">

@@ -66,6 +66,43 @@ pub struct BudokanConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Web2 oracle configuration (singleton)
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct Web2OracleConfig {
+    #[key]
+    pub id: u8,
+    pub verifier_address: ContractAddress,
+    pub enabled: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Admin transfer (singleton)
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct AdminTransfer {
+    #[key]
+    pub id: u8,
+    pub pending_admin: ContractAddress,
+}
+
+// ---------------------------------------------------------------------------
+// Used zkTLS proof (global nullifier)
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct UsedProof {
+    #[key]
+    pub proof_id: felt252,
+    pub used: bool,
+}
+
+// ---------------------------------------------------------------------------
 // Fee vault — accumulated protocol fees per token
 // ---------------------------------------------------------------------------
 
@@ -126,6 +163,23 @@ pub struct BettingPool {
     pub tournament_id: u64,
     pub entry_id_p1: u64,
     pub entry_id_p2: u64,
+}
+
+// ---------------------------------------------------------------------------
+// Web2 betting pool metadata
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct Web2BettingPool {
+    #[key]
+    pub pool_id: u32,
+
+    pub match_id: felt252,
+    pub game_provider_id: felt252,
+    pub player_1_tag: felt252,
+    pub player_2_tag: felt252,
+    pub proof_nullifier_used: bool,
 }
 
 // ---------------------------------------------------------------------------

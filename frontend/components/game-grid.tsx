@@ -8,6 +8,7 @@ import { useEgs } from '@/providers/egs-provider'
 import { web3Config } from '@/lib/web3-config'
 import { formatUnits } from '@/lib/token-utils'
 import { sameAddress } from '@/lib/address-utils'
+import Link from 'next/link'
 
 const gradients = [
   'linear-gradient(135deg, #a855f7 0%, #06b6d4 100%)',
@@ -74,10 +75,11 @@ function TournamentCard({ tournament, index }: { tournament: BudokanTournament; 
   const isOpen = tournament.phase <= 2
 
   return (
-    <Card
-      className="overflow-hidden hover:shadow-lg hover:shadow-neon-purple/20 transition-all duration-300 card-border group cursor-pointer hover:-translate-y-1 scale-in"
-      style={{ animationDelay: `${index * 0.06}s` }}
-    >
+    <Link href={`/match?tournamentId=${tournament.id}`} className="block">
+      <Card
+        className="overflow-hidden hover:shadow-lg hover:shadow-neon-purple/20 transition-all duration-300 card-border group cursor-pointer hover:-translate-y-1 scale-in"
+        style={{ animationDelay: `${index * 0.06}s` }}
+      >
       {/* Thumbnail */}
       <div
         className="h-28 sm:h-32 relative overflow-hidden"
@@ -146,6 +148,7 @@ function TournamentCard({ tournament, index }: { tournament: BudokanTournament; 
         </div>
       </div>
     </Card>
+    </Link>
   )
 }
 
@@ -156,10 +159,11 @@ function EgsCard({ game, index }: { game: ReturnType<typeof useEgs>['games'][0];
   const poolLabel = formatPool(game.pool)
 
   return (
-    <Card
-      className="overflow-hidden hover:shadow-lg hover:shadow-neon-purple/20 transition-all duration-300 card-border group cursor-pointer hover:-translate-y-1 scale-in"
-      style={{ animationDelay: `${index * 0.06}s` }}
-    >
+    <Link href={game.pool?.pool_id ? `/match?poolId=${game.pool.pool_id}` : '#'} className="block">
+      <Card
+        className="overflow-hidden hover:shadow-lg hover:shadow-neon-purple/20 transition-all duration-300 card-border group cursor-pointer hover:-translate-y-1 scale-in"
+        style={{ animationDelay: `${index * 0.06}s` }}
+      >
       <div className="h-28 sm:h-32 relative overflow-hidden" style={{ backgroundImage: gradient }}>
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
         <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3">
@@ -188,6 +192,7 @@ function EgsCard({ game, index }: { game: ReturnType<typeof useEgs>['games'][0];
         </div>
       </div>
     </Card>
+    </Link>
   )
 }
 

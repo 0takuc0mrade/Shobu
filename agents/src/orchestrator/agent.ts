@@ -12,9 +12,12 @@ import {
   fetchAllPools,
   fetchPoolById,
   fetchOddsSnapshot,
+  fetchWeb2PoolById,
   type BettingPoolModel,
 } from '../shared/torii.js'
 import { ENTRYPOINTS, POOL_STATUS, SETTLEMENT_MODE } from '../shared/constants.js'
+import { decodeShortString } from '../shared/encoding.js'
+import { generateRiotReclaimProof } from '../shared/reclaim.js'
 
 // -----------------------------------------------------------------------
 // Settlement cooldown
@@ -147,10 +150,41 @@ agent.addCapability({
         continue
       }
 
-      const call = {
-        contractAddress: config.ESCROW_ADDRESS,
-        entrypoint: ENTRYPOINTS.settlePool,
-        calldata: [pool.pool_id.toString()],
+      let call: { contractAddress: string; entrypoint: string; calldata: string[] }
+      try {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+          const web2 = await fetchWeb2PoolById(poolId)
+          if (!web2) {
+            cooldown.markFailed(poolId)
+            results.push(`Pool #${poolId} missing Web2 metadata`)
+            continue
+          }
+
+          const matchId = decodeShortString(web2.match_id, 'match_id')
+          const player1Tag = decodeShortString(web2.player_1_tag, 'player_1_tag')
+          const player2Tag = decodeShortString(web2.player_2_tag, 'player_2_tag')
+
+          const { calldata: proofCalldata } = await generateRiotReclaimProof(
+            matchId,
+            player1Tag,
+            player2Tag
+          )
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settleWeb2Pool,
+            calldata: [poolId.toString(), ...proofCalldata],
+          }
+        } else {
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settlePool,
+            calldata: [pool.pool_id.toString()],
+          }
+        }
+      } catch (err: any) {
+        cooldown.markFailed(poolId)
+        results.push(`Pool #${poolId} proof/error: ${err?.message ?? err}`)
+        continue
       }
 
       const wouldSucceed = await simulateCall([call])
@@ -261,13 +295,20 @@ agent.addCapability({
           )
           const gameId = Number(entry.game_id ?? entry.gameId ?? entry.id)
           const deadline = nowSec + config.DEFAULT_DEADLINE_SECONDS
+          const egsP1 = entry.egs_token_id_p1 ?? entry.token_id_p1
+          const egsP2 = entry.egs_token_id_p2 ?? entry.token_id_p2
+          const isEgs = Boolean(egsP1 && egsP2)
+
+          const entrypoint = isEgs
+            ? ENTRYPOINTS.createEgsPool
+            : ENTRYPOINTS.createPool
+          const calldata = isEgs
+            ? [worldAddr, gameId.toString(), config.POOL_TOKEN, deadline.toString(), String(egsP1), String(egsP2)]
+            : [worldAddr, gameId.toString(), config.POOL_TOKEN, deadline.toString()]
+
           try {
             await executeAndWait([
-              {
-                contractAddress: config.ESCROW_ADDRESS,
-                entrypoint: ENTRYPOINTS.createPool,
-                calldata: [worldAddr, gameId.toString(), config.POOL_TOKEN, deadline.toString()],
-              },
+              { contractAddress: config.ESCROW_ADDRESS, entrypoint, calldata },
             ])
             created++
           } catch {
@@ -287,10 +328,39 @@ agent.addCapability({
       const poolId = Number(pool.pool_id)
       if (cooldown.isOnCooldown(poolId)) continue
 
-      const call = {
-        contractAddress: config.ESCROW_ADDRESS,
-        entrypoint: ENTRYPOINTS.settlePool,
-        calldata: [pool.pool_id.toString()],
+      let call: { contractAddress: string; entrypoint: string; calldata: string[] }
+      try {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+          const web2 = await fetchWeb2PoolById(poolId)
+          if (!web2) {
+            cooldown.markFailed(poolId)
+            continue
+          }
+
+          const matchId = decodeShortString(web2.match_id, 'match_id')
+          const player1Tag = decodeShortString(web2.player_1_tag, 'player_1_tag')
+          const player2Tag = decodeShortString(web2.player_2_tag, 'player_2_tag')
+
+          const { calldata: proofCalldata } = await generateRiotReclaimProof(
+            matchId,
+            player1Tag,
+            player2Tag
+          )
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settleWeb2Pool,
+            calldata: [poolId.toString(), ...proofCalldata],
+          }
+        } else {
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settlePool,
+            calldata: [pool.pool_id.toString()],
+          }
+        }
+      } catch (err: any) {
+        cooldown.markFailed(poolId)
+        continue
       }
 
       const wouldSucceed = await simulateCall([call])
@@ -320,8 +390,75 @@ agent.addCapability({
 })
 
 // -----------------------------------------------------------------------
-// Provision & Run
+// Local autonomous loop (bypasses OpenServ tunnel)
 // -----------------------------------------------------------------------
+
+const CYCLE_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+
+async function runCycle() {
+  console.log(`[orchestrator] ⏱ Starting protocol cycle at ${new Date().toISOString()}`)
+  try {
+    const config = getConfig()
+    const allPools = await fetchAllPools()
+    const open = allPools.filter((p) => Number(p.status) === POOL_STATUS.OPEN)
+    console.log(`[orchestrator] 📊 Protocol: ${allPools.length} pools (${open.length} open)`)
+
+    // Settle finished games (simulate first)
+    const candidates = open.filter((p) => BigInt(p.total_pot || 0) > 0n)
+    let settled = 0
+    for (const pool of candidates) {
+      const poolId = Number(pool.pool_id)
+      if (cooldown.isOnCooldown(poolId)) continue
+
+      let call: { contractAddress: string; entrypoint: string; calldata: string[] }
+      try {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+          const web2 = await fetchWeb2PoolById(poolId)
+          if (!web2) {
+            cooldown.markFailed(poolId)
+            continue
+          }
+          const matchId = decodeShortString(web2.match_id, 'match_id')
+          const player1Tag = decodeShortString(web2.player_1_tag, 'player_1_tag')
+          const player2Tag = decodeShortString(web2.player_2_tag, 'player_2_tag')
+          const { calldata: proofCalldata } = await generateRiotReclaimProof(matchId, player1Tag, player2Tag)
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settleWeb2Pool,
+            calldata: [poolId.toString(), ...proofCalldata],
+          }
+        } else {
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settlePool,
+            calldata: [pool.pool_id.toString()],
+          }
+        }
+      } catch (err: any) {
+        cooldown.markFailed(poolId)
+        continue
+      }
+
+      const wouldSucceed = await simulateCall([call])
+      if (!wouldSucceed) {
+        cooldown.markFailed(poolId)
+        continue
+      }
+      try {
+        const txHash = await executeAndWait([call])
+        cooldown.clear(poolId)
+        settled++
+        console.log(`[orchestrator] ✅ Settled pool #${poolId} — tx: ${txHash}`)
+      } catch {
+        cooldown.markFailed(poolId)
+      }
+    }
+
+    console.log(`[orchestrator] 🏁 Cycle complete — settled ${settled} pools`)
+  } catch (err: any) {
+    console.error(`[orchestrator] ❌ Cycle error: ${err?.message ?? err}`)
+  }
+}
 
 async function main() {
   const config = loadConfig()
@@ -333,26 +470,17 @@ async function main() {
     return
   }
 
-  await provision({
-    agent: {
-      instance: agent,
-      name: 'shobu-orchestrator',
-      description:
-        'Master coordinator for the Shobu betting protocol — manages the full pool lifecycle from creation through settlement and analysis.',
-    },
-    workflow: {
-      name: 'Shobu Protocol Manager',
-      trigger: triggers.cron({ schedule: '*/10 * * * *' }),
-      task: {
-        description:
-          'Coordinate the full lifecycle of betting pools on the Shobu protocol: scan game feeds for new games, create betting pools, monitor and settle finished games, and generate market reports — all in a single coordinated workflow.',
-      },
-    },
-  })
+  console.log(`[orchestrator] 🚀 Running in local autonomous mode (interval: ${CYCLE_INTERVAL_MS / 1000}s)`)
 
-  dotenv.config({ override: true })
+  // Run first cycle immediately
+  await runCycle()
 
-  await run(agent)
+  // Then run on interval
+  setInterval(() => {
+    runCycle().catch((err) =>
+      console.error('[orchestrator] interval error:', err?.message ?? err)
+    )
+  }, CYCLE_INTERVAL_MS)
 }
 
 main().catch((err) => {

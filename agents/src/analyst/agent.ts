@@ -29,7 +29,13 @@ function formatPool(pool: BettingPoolModel, odds?: OddsSnapshotModel | null): st
   const onP1 = BigInt(pool.total_on_p1 || 0)
   const onP2 = BigInt(pool.total_on_p2 || 0)
   const bettors = Number(pool.bettor_count_p1 || 0) + Number(pool.bettor_count_p2 || 0)
-  const mode = Number(pool.settlement_mode) === SETTLEMENT_MODE.EGS ? 'EGS' : 'Direct'
+  const mode = (() => {
+    const m = Number(pool.settlement_mode)
+    if (m === SETTLEMENT_MODE.EGS) return 'EGS'
+    if (m === SETTLEMENT_MODE.BUDOKAN) return 'Budokan'
+    if (m === SETTLEMENT_MODE.WEB2_ZKTLS) return 'Web2'
+    return 'Direct'
+  })()
 
   let oddsStr = 'N/A'
   if (odds) {
@@ -224,8 +230,8 @@ agent.addCapability({
     const newPools = openPools.filter((p) => !postedIds.includes(p.pool_id.toString()))
     if (newPools.length === 0) return 'No new pools to post about.'
 
-    const webhookUrl = process.env.DISCORD_WEBHOOK_URL
-    if (!webhookUrl) return 'DISCORD_WEBHOOK_URL not configured. Skipped posting.'
+    const webhookUrl = process.env.TWITTER_WEBHOOK_URL
+    if (!webhookUrl) return 'TWITTER_WEBHOOK_URL not configured. Skipped posting.'
 
     let postedCount = 0
     for (const pool of newPools) {
@@ -237,28 +243,25 @@ agent.addCapability({
           prompt: `You are the Shobu Analyst. A new betting pool has just opened!
 Raw data: ${summary}
 
-Write a very short, exciting social media post (Discord style) announcing this match. Include the current odds, pool size, and a call to action to place bets. Keep it under 500 characters. Use emojis.`,
+Write a very short, exciting Twitter post announcing this match. Include the current odds, pool size, and a call to action to place bets. Keep it under 280 characters. Use emojis. No markdown or hashtags (unless extremely relevant).`,
           action,
         })
 
-        // Send to Discord Webhook
+        // Send to Twitter Webhook (Make / Zapier)
         await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: 'Shobu Analyst Agent',
-            avatar_url: 'https://openserv.ai/favicon.ico',
-            embeds: [
-              {
-                title: `🎯 New Match: Pool #${pool.pool_id}`,
-                description: analysis,
-                color: 0x3b82f6,
-                fields: [
-                  { name: 'Pot Size', value: `${pool.total_pot} tokens`, inline: true },
-                  { name: 'Mode', value: Number(pool.settlement_mode) === SETTLEMENT_MODE.EGS ? 'EGS' : 'Direct', inline: true }
-                ]
-              }
-            ]
+            text: analysis,
+            pool_id: pool.pool_id,
+            pot: String(pool.total_pot),
+            mode: (() => {
+              const m = Number(pool.settlement_mode)
+              if (m === SETTLEMENT_MODE.EGS) return 'EGS'
+              if (m === SETTLEMENT_MODE.BUDOKAN) return 'Budokan'
+              if (m === SETTLEMENT_MODE.WEB2_ZKTLS) return 'Web2'
+              return 'Direct'
+            })()
           }),
         })
 
@@ -280,8 +283,67 @@ Write a very short, exciting social media post (Discord style) announcing this m
 })
 
 // -----------------------------------------------------------------------
-// Provision & Run
+// Local autonomous loop (bypasses OpenServ tunnel)
 // -----------------------------------------------------------------------
+
+const ANALYST_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function runAnalystCycle() {
+  console.log(`[analyst] ⏱ Starting analyst cycle at ${new Date().toISOString()}`)
+  try {
+    const [openPools, settledPools] = await Promise.all([
+      fetchOpenPools(),
+      fetchSettledPools(),
+    ])
+
+    const totalVolume = [...openPools, ...settledPools].reduce(
+      (sum, p) => sum + BigInt(p.total_pot || 0), 0n
+    )
+
+    console.log(`[analyst] 📊 Market: ${openPools.length} open, ${settledPools.length} settled, volume: ${totalVolume}`)
+
+    // Post new markets to webhook if configured
+    const webhookUrl = process.env.TWITTER_WEBHOOK_URL
+    if (webhookUrl) {
+      const statePath = path.resolve('.posted_pools.json')
+      let postedIds: string[] = []
+      try {
+        if (fs.existsSync(statePath)) {
+          postedIds = JSON.parse(fs.readFileSync(statePath, 'utf-8'))
+        }
+      } catch {}
+
+      const newPools = openPools.filter((p) => !postedIds.includes(p.pool_id.toString()))
+      if (newPools.length > 0) {
+        let postedCount = 0
+        for (const pool of newPools) {
+          try {
+            const odds = await fetchOddsSnapshot(pool.pool_id)
+            const summary = formatPool(pool, odds)
+
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: `New betting pool #${pool.pool_id} is live! Pot: ${pool.total_pot}`,
+                pool_id: pool.pool_id,
+                pot: String(pool.total_pot),
+              }),
+            })
+            postedIds.push(pool.pool_id.toString())
+            postedCount++
+          } catch {}
+        }
+        try { fs.writeFileSync(statePath, JSON.stringify(postedIds, null, 2)) } catch {}
+        if (postedCount > 0) console.log(`[analyst] 📢 Posted ${postedCount} new markets`)
+      }
+    }
+
+    console.log(`[analyst] 🏁 Analyst cycle complete`)
+  } catch (err: any) {
+    console.error(`[analyst] ❌ Cycle error: ${err?.message ?? err}`)
+  }
+}
 
 async function main() {
   const config = loadConfig()
@@ -293,26 +355,17 @@ async function main() {
     return
   }
 
-  await provision({
-    agent: {
-      instance: agent,
-      name: 'shobu-analyst',
-      description:
-        'Provides odds analysis, pool insights, and market overviews for the Shobu betting protocol using on-chain data and AI-powered analysis.',
-    },
-    workflow: {
-      name: 'Shobu Market Analyst',
-      trigger: triggers.cron({ schedule: '*/5 * * * *' }),
-      task: {
-        description:
-          'Monitor the Shobu betting market every 5 minutes. Automatically detect newly opened betting streams, run AI-powered analysis on the initial odds, and broadcast the insights to a Discord community channel.',
-      },
-    },
-  })
+  console.log(`[analyst] 🚀 Running in local autonomous mode (interval: ${ANALYST_INTERVAL_MS / 1000}s)`)
 
-  dotenv.config({ override: true })
+  // Run first cycle immediately
+  await runAnalystCycle()
 
-  await run(agent)
+  // Then run on interval
+  setInterval(() => {
+    runAnalystCycle().catch((err) =>
+      console.error('[analyst] interval error:', err?.message ?? err)
+    )
+  }, ANALYST_INTERVAL_MS)
 }
 
 main().catch((err) => {

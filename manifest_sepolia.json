@@ -34,7 +34,7 @@
   "contracts": [
     {
       "address": "0x524aa3710ce681af6d8ab570f68065d52f865c954dd01ba7e92e76d49446538",
-      "class_hash": "0xaf614c6871ecc76276b1b98aac0f73c87dc069b0980cb280fa361cf707042b",
+      "class_hash": "0x21df755ec22b97deca1d4c9d6c4c67182ae1aea25c6f6f1f64bc72b130fabe6",
       "init_calldata": [],
       "tag": "shobu-Escrow",
       "selector": "0x42b9a1246483c0962a8968cf3598dc50b00ee51fd7258b98762f1c071279fd0",
@@ -45,19 +45,54 @@
         "settle_pool",
         "claim_winnings",
         "cancel_pool",
+        "claim_refund",
         "configure_protocol",
+        "set_paused",
+        "propose_admin",
+        "accept_admin",
         "claim_protocol_fees",
         "create_egs_pool",
+        "create_web2_pool",
         "set_pool_manager",
         "configure_denshokan",
         "create_budokan_pool",
+        "settle_web2_pool",
         "configure_budokan",
+        "configure_web2_oracle",
+        "upgrade"
+      ]
+    },
+    {
+      "address": "0x1350566404cc897e53c6562bcdeeed5dd6aa000d6973664747873e44c2e572d",
+      "class_hash": "0x2681ff9d16cfc3c68d9aa5f8f76a9bd5b5551c55851b68bc9d177b0095a1bc4",
+      "init_calldata": [],
+      "tag": "shobu-pistols_adapter",
+      "selector": "0x79ccd6271e730ce9d81722be41f80740c579e3e59f1be9635fc29e0987ca91d",
+      "systems": [
+        "set_pistols_world_address",
         "upgrade"
       ]
     }
   ],
   "libraries": [],
   "models": [
+    {
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8",
+          "key": true
+        },
+        {
+          "name": "pending_admin",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        }
+      ],
+      "class_hash": "0x10e3b7ec2537378910e45cf9d86364877e181d58c9b3388bad368fec743a60e",
+      "tag": "shobu-AdminTransfer",
+      "selector": "0x2932bf5488f7274e26b58dba432b184452bfee994393050bfe9e6753cbf30bf"
+    },
     {
       "members": [
         {
@@ -390,9 +425,119 @@
       "class_hash": "0x331250abd9592723a785c6702b25cab01e8eaad255fb20fca7e42dd683d6b9f",
       "tag": "shobu-ProtocolConfig",
       "selector": "0xb1881c39e0da941bb90a0ecd34f5676c8826a555d7fb82bb33400918257aa7"
+    },
+    {
+      "members": [
+        {
+          "name": "proof_id",
+          "type": "core::felt252",
+          "key": true
+        },
+        {
+          "name": "used",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x2062a269404c0af97b16408b3fcc2e977e24e8c45c906d096d3c9ed4416f24f",
+      "tag": "shobu-UsedProof",
+      "selector": "0x2a0439845f7fb355fb0daa55b60b71175fd5e3436d4677705f903d49dcdf56f"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "match_id",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "game_provider_id",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "player_1_tag",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "player_2_tag",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "proof_nullifier_used",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x10303468735f4ccbffb8c0b9a64f94b86e463a9650a6f9249752977c6272890",
+      "tag": "shobu-Web2BettingPool",
+      "selector": "0x6a7cf397eaa151407d03e014a9c673b017ebb38d8944536be24aa6648a053f"
+    },
+    {
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8",
+          "key": true
+        },
+        {
+          "name": "verifier_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x4ab36064d21d03954aa51b0d0c2c4ab255bd490c87a0724eca4218644a12eb1",
+      "tag": "shobu-Web2OracleConfig",
+      "selector": "0x1ebdc2b9f084f9af1c0dc8fb2338f02987d43266bff3165569644c31403f758"
     }
   ],
   "events": [
+    {
+      "members": [
+        {
+          "name": "old_admin",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "new_admin",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        }
+      ],
+      "class_hash": "0x4e23f3a8f5c6bb80cdd12d9549f7ec9d7091687806047dc05a0a337699df524",
+      "tag": "shobu-admin_transfer_accepted",
+      "selector": "0x18ff20a14625b1f7b811c94250493ae8509117cc243bc75d0a6dd2b5048ab26"
+    },
+    {
+      "members": [
+        {
+          "name": "new_admin",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "proposed_by",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": false
+        }
+      ],
+      "class_hash": "0x7bdd556e1b5a60417fecf71b8fa52f9a10d85db3b4f73aa78318766f118e848",
+      "tag": "shobu-admin_transfer_proposed",
+      "selector": "0xe41d147361367eeb59d59b64fa03e01c42c7a8811c08a5bac35dec0f9d3859"
+    },
     {
       "members": [
         {
@@ -683,6 +828,94 @@
     {
       "members": [
         {
+          "name": "admin",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "paused",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x16ad4514c766adeafdd6f78bbfaa62a57e67fa2c3f50a85f6563e8b28fb4102",
+      "tag": "shobu-protocol_paused",
+      "selector": "0x6b94ec5f75748b1b14f9a5c965f629cb0e88c857a10b0b6a59c99e9222bd62e"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128",
+          "key": false
+        }
+      ],
+      "class_hash": "0x59eb453b8a2531291c6f082b38706d136c7429fb43b13d3b50dfd6b010e400",
+      "tag": "shobu-refund_claimed",
+      "selector": "0x583e6cc1a0279dae8d34f978ce0c80d8a29dad61bbb4b73918e053c8723fbc2"
+    },
+    {
+      "members": [
+        {
+          "name": "verifier_address",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "key": true
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool",
+          "key": false
+        }
+      ],
+      "class_hash": "0x585fc71326342d9c358bb1739ccebda8a566ce4d112239b18d151c58fc70e2",
+      "tag": "shobu-web2_oracle_configured",
+      "selector": "0x27c22027a4f466d35ebf7c068f1c9db5ddb42fef8a90b70b49fb250b8d72b16"
+    },
+    {
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32",
+          "key": true
+        },
+        {
+          "name": "match_id",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "game_provider_id",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "player_1_tag",
+          "type": "core::felt252",
+          "key": false
+        },
+        {
+          "name": "player_2_tag",
+          "type": "core::felt252",
+          "key": false
+        }
+      ],
+      "class_hash": "0x59e0bd642a059366fe096c8031266876b7baabb6357897e7070e1583c332540",
+      "tag": "shobu-web2_pool_created",
+      "selector": "0x7519172ee824669b3757ee46256440330d78b0f4f2d9317c6e1fcb7bd3c7361"
+    },
+    {
+      "members": [
+        {
           "name": "pool_id",
           "type": "core::integer::u32",
           "key": true
@@ -829,6 +1062,20 @@
         {
           "name": "pending_word_len",
           "type": "core::internal::bounded_int::BoundedInt::<0, 30>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::integer::u256",
+      "members": [
+        {
+          "name": "low",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "high",
+          "type": "core::integer::u128"
         }
       ]
     },
@@ -2518,7 +2765,7 @@
       "name": "dojo_init",
       "inputs": [],
       "outputs": [],
-      "state_mutability": "external"
+      "state_mutability": "view"
     },
     {
       "type": "function",
@@ -2550,6 +2797,207 @@
       ],
       "outputs": [],
       "state_mutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "set_pistols_world_address",
+      "inputs": [
+        {
+          "name": "address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ],
+      "outputs": [],
+      "state_mutability": "external"
+    },
+    {
+      "type": "event",
+      "name": "shobu::focg::pistols_adapter::pistols_adapter::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "UpgradeableEvent",
+          "type": "dojo::contract::components::upgradeable::upgradeable_cpt::Event",
+          "kind": "nested"
+        },
+        {
+          "name": "WorldProviderEvent",
+          "type": "dojo::contract::components::world_provider::world_provider_cpt::Event",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::interfaces::ClaimInfo",
+      "members": [
+        {
+          "name": "provider",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "parameters",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "context",
+          "type": "core::byte_array::ByteArray"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::interfaces::CompleteClaimData",
+      "members": [
+        {
+          "name": "identifier",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "byte_identifier",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "owner",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "epoch",
+          "type": "core::byte_array::ByteArray"
+        },
+        {
+          "name": "timestamp_s",
+          "type": "core::byte_array::ByteArray"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "shobu::interfaces::IGameWorld",
+      "items": [
+        {
+          "type": "function",
+          "name": "game_state",
+          "inputs": [
+            {
+              "name": "game_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "(core::integer::u8, core::starknet::contract_address::ContractAddress)"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "game_players",
+          "inputs": [
+            {
+              "name": "game_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "(core::starknet::contract_address::ContractAddress, core::starknet::contract_address::ContractAddress)"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "player_stats",
+          "inputs": [
+            {
+              "name": "player",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "(core::integer::u32, core::integer::u32, core::integer::u64)"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::interfaces::Proof",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "claim_info",
+          "type": "shobu::interfaces::ClaimInfo"
+        },
+        {
+          "name": "signed_claim",
+          "type": "shobu::interfaces::SignedClaim"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::interfaces::ReclaimSignature",
+      "members": [
+        {
+          "name": "r",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "s",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "v",
+          "type": "core::integer::u32"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::interfaces::SignedClaim",
+      "members": [
+        {
+          "name": "claim",
+          "type": "shobu::interfaces::CompleteClaimData"
+        },
+        {
+          "name": "signatures",
+          "type": "core::array::Array::<shobu::interfaces::ReclaimSignature>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::AdminTransfer",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "pending_admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::AdminTransferValue",
+      "members": [
+        {
+          "name": "pending_admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
     },
     {
       "type": "struct",
@@ -3052,6 +3500,124 @@
       ]
     },
     {
+      "type": "struct",
+      "name": "shobu::models::UsedProof",
+      "members": [
+        {
+          "name": "proof_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "used",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::UsedProofValue",
+      "members": [
+        {
+          "name": "used",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::Web2BettingPool",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "match_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "game_provider_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_1_tag",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_2_tag",
+          "type": "core::felt252"
+        },
+        {
+          "name": "proof_nullifier_used",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::Web2BettingPoolValue",
+      "members": [
+        {
+          "name": "match_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "game_provider_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_1_tag",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_2_tag",
+          "type": "core::felt252"
+        },
+        {
+          "name": "proof_nullifier_used",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::Web2OracleConfig",
+      "members": [
+        {
+          "name": "id",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "verifier_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::models::Web2OracleConfigValue",
+      "members": [
+        {
+          "name": "verifier_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_AdminTransfer::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
       "type": "event",
       "name": "shobu::models::m_Bet::Event",
       "kind": "enum",
@@ -3107,6 +3673,24 @@
     },
     {
       "type": "event",
+      "name": "shobu::models::m_UsedProof::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_Web2BettingPool::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::models::m_Web2OracleConfig::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
       "name": "shobu::systems::actions::Escrow::Event",
       "kind": "enum",
       "variants": [
@@ -3119,6 +3703,54 @@
           "name": "WorldProviderEvent",
           "type": "dojo::contract::components::world_provider::world_provider_cpt::Event",
           "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::admin_transfer_accepted",
+      "members": [
+        {
+          "name": "old_admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "new_admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::admin_transfer_acceptedValue",
+      "members": [
+        {
+          "name": "new_admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::admin_transfer_proposed",
+      "members": [
+        {
+          "name": "new_admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "proposed_by",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::admin_transfer_proposedValue",
+      "members": [
+        {
+          "name": "proposed_by",
+          "type": "core::starknet::contract_address::ContractAddress"
         }
       ]
     },
@@ -3284,6 +3916,18 @@
     },
     {
       "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_admin_transfer_accepted::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_admin_transfer_proposed::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
       "name": "shobu::systems::actions::Escrow::e_bet_placed::Event",
       "kind": "enum",
       "variants": []
@@ -3345,6 +3989,30 @@
     {
       "type": "event",
       "name": "shobu::systems::actions::Escrow::e_protocol_fee_configured::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_protocol_paused::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_refund_claimed::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_web2_oracle_configured::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "shobu::systems::actions::Escrow::e_web2_pool_created::Event",
       "kind": "enum",
       "variants": []
     },
@@ -3620,6 +4288,130 @@
     },
     {
       "type": "struct",
+      "name": "shobu::systems::actions::Escrow::protocol_paused",
+      "members": [
+        {
+          "name": "admin",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "paused",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::protocol_pausedValue",
+      "members": [
+        {
+          "name": "paused",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::refund_claimed",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "bettor",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::refund_claimedValue",
+      "members": [
+        {
+          "name": "amount",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::web2_oracle_configured",
+      "members": [
+        {
+          "name": "verifier_address",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::web2_oracle_configuredValue",
+      "members": [
+        {
+          "name": "enabled",
+          "type": "core::bool"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::web2_pool_created",
+      "members": [
+        {
+          "name": "pool_id",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "match_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "game_provider_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_1_tag",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_2_tag",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "shobu::systems::actions::Escrow::web2_pool_createdValue",
+      "members": [
+        {
+          "name": "match_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "game_provider_id",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_1_tag",
+          "type": "core::felt252"
+        },
+        {
+          "name": "player_2_tag",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
       "name": "shobu::systems::actions::Escrow::winnings_claimed",
       "members": [
         {
@@ -3736,6 +4528,18 @@
         },
         {
           "type": "function",
+          "name": "claim_refund",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
           "name": "configure_protocol",
           "inputs": [
             {
@@ -3747,6 +4551,37 @@
               "type": "core::starknet::contract_address::ContractAddress"
             }
           ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "set_paused",
+          "inputs": [
+            {
+              "name": "paused",
+              "type": "core::bool"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "propose_admin",
+          "inputs": [
+            {
+              "name": "new_admin",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "accept_admin",
+          "inputs": [],
           "outputs": [],
           "state_mutability": "external"
         },
@@ -3820,6 +4655,46 @@
             },
             {
               "name": "egs_token_id_p2",
+              "type": "core::felt252"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "create_web2_pool",
+          "inputs": [
+            {
+              "name": "match_id",
+              "type": "core::felt252"
+            },
+            {
+              "name": "game_provider_id",
+              "type": "core::felt252"
+            },
+            {
+              "name": "token",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "deadline",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "player_1",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "player_2",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "player_1_tag",
+              "type": "core::felt252"
+            },
+            {
+              "name": "player_2_tag",
               "type": "core::felt252"
             }
           ],
@@ -3908,10 +4783,42 @@
         },
         {
           "type": "function",
+          "name": "settle_web2_pool",
+          "inputs": [
+            {
+              "name": "pool_id",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "proof",
+              "type": "shobu::interfaces::Proof"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
           "name": "configure_budokan",
           "inputs": [
             {
               "name": "default_address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "enabled",
+              "type": "core::bool"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "configure_web2_oracle",
+          "inputs": [
+            {
+              "name": "verifier_address",
               "type": "core::starknet::contract_address::ContractAddress"
             },
             {

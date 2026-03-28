@@ -1,3 +1,4 @@
+use core::byte_array::ByteArray;
 use starknet::ContractAddress;
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,51 @@ pub trait IERC721<T> {
 pub trait IBudokan<T> {
     fn get_leaderboard(self: @T, tournament_id: u64) -> Array<u64>;
     fn current_phase(self: @T, tournament_id: u64) -> u8;
+}
+
+// ---------------------------------------------------------------------------
+// Reclaim zkTLS proof types + verifier interface
+// ---------------------------------------------------------------------------
+
+#[derive(Serde, Drop, Debug)]
+pub struct ClaimInfo {
+    pub provider: ByteArray,
+    pub parameters: ByteArray,
+    pub context: ByteArray,
+}
+
+#[derive(Serde, Drop, Debug)]
+pub struct CompleteClaimData {
+    pub identifier: u256,
+    pub byte_identifier: ByteArray,
+    pub owner: ByteArray,
+    pub epoch: ByteArray,
+    pub timestamp_s: ByteArray,
+}
+
+#[derive(Serde, Drop, Debug)]
+pub struct ReclaimSignature {
+    pub r: u256,
+    pub s: u256,
+    pub v: u32,
+}
+
+#[derive(Serde, Drop, Debug)]
+pub struct SignedClaim {
+    pub claim: CompleteClaimData,
+    pub signatures: Array<ReclaimSignature>,
+}
+
+#[derive(Serde, Drop, Debug)]
+pub struct Proof {
+    pub id: felt252,
+    pub claim_info: ClaimInfo,
+    pub signed_claim: SignedClaim,
+}
+
+#[starknet::interface]
+pub trait IReclaim<TContractState> {
+    fn verify_proof(ref self: TContractState, proof: Proof);
 }
 
 // ---------------------------------------------------------------------------

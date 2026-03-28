@@ -30,6 +30,15 @@ export interface BettingPoolModel {
   player_2: string
 }
 
+export interface Web2BettingPoolModel {
+  pool_id: number
+  match_id: string
+  game_provider_id: string
+  player_1_tag: string
+  player_2_tag: string
+  proof_nullifier_used: boolean
+}
+
 export interface OddsSnapshotModel {
   pool_id: number
   implied_prob_p1: string | number
@@ -114,6 +123,15 @@ const POOL_FIELDS = `
   player_2
 `
 
+const WEB2_POOL_FIELDS = `
+  pool_id
+  match_id
+  game_provider_id
+  player_1_tag
+  player_2_tag
+  proof_nullifier_used
+`
+
 // -----------------------------------------------------------------------
 // Query helpers
 // -----------------------------------------------------------------------
@@ -174,6 +192,23 @@ export async function fetchPoolById(
     }
   `)
   const pools = extractEdges<BettingPoolModel>(data, 'shobuBettingPoolModels')
+  return pools[0] ?? null
+}
+
+/**
+ * Fetch Web2 pool metadata by pool ID.
+ */
+export async function fetchWeb2PoolById(
+  poolId: number
+): Promise<Web2BettingPoolModel | null> {
+  const data = await graphqlQuery(`
+    query {
+      shobuWeb2BettingPoolModels(where: { pool_id: ${poolId} }, limit: 1) {
+        edges { node { ${WEB2_POOL_FIELDS} } }
+      }
+    }
+  `)
+  const pools = extractEdges<Web2BettingPoolModel>(data, 'shobuWeb2BettingPoolModels')
   return pools[0] ?? null
 }
 

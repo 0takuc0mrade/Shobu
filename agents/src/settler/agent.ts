@@ -10,9 +10,12 @@ import { initSession, executeAndWait, simulateCall, SettlementCooldown } from '.
 import {
   fetchOpenPools,
   fetchPoolById,
+  fetchWeb2PoolById,
   type BettingPoolModel,
 } from '../shared/torii.js'
 import { ENTRYPOINTS, POOL_STATUS, SETTLEMENT_MODE } from '../shared/constants.js'
+import { decodeShortString } from '../shared/encoding.js'
+import { generateRiotReclaimProof } from '../shared/reclaim.js'
 
 // -----------------------------------------------------------------------
 // Settlement cooldown — prevents retrying recently-failed pools
@@ -41,8 +44,13 @@ agent.addCapability({
     const lines = pools.map((p) => {
       const pot = BigInt(p.total_pot || 0)
       const bettors = Number(p.bettor_count_p1 || 0) + Number(p.bettor_count_p2 || 0)
-      const mode =
-        Number(p.settlement_mode) === SETTLEMENT_MODE.EGS ? 'EGS' : 'Direct'
+      const mode = (() => {
+        const m = Number(p.settlement_mode)
+        if (m === SETTLEMENT_MODE.EGS) return 'EGS'
+        if (m === SETTLEMENT_MODE.BUDOKAN) return 'Budokan'
+        if (m === SETTLEMENT_MODE.WEB2_ZKTLS) return 'Web2'
+        return 'Direct'
+      })()
       return `Pool #${p.pool_id} | game_id=${p.game_id} | pot=${pot} | bettors=${bettors} | mode=${mode} | deadline=${p.deadline}`
     })
     return `Open pools (${pools.length}):\n${lines.join('\n')}`
@@ -68,7 +76,14 @@ agent.addCapability({
     if (pot === 0n)
       return `Pool #${args.poolId} is open but has no bets — cannot settle an empty pool.`
 
-    return `Pool #${args.poolId} is open with pot=${pot}. Settlement mode=${Number(pool.settlement_mode) === SETTLEMENT_MODE.EGS ? 'EGS' : 'Direct'}. Ready to attempt settlement.`
+    const mode = (() => {
+      const m = Number(pool.settlement_mode)
+      if (m === SETTLEMENT_MODE.EGS) return 'EGS'
+      if (m === SETTLEMENT_MODE.BUDOKAN) return 'Budokan'
+      if (m === SETTLEMENT_MODE.WEB2_ZKTLS) return 'Web2'
+      return 'Direct'
+    })()
+    return `Pool #${args.poolId} is open with pot=${pot}. Settlement mode=${mode}. Ready to attempt settlement.`
   },
 })
 
@@ -83,6 +98,34 @@ agent.addCapability({
   async run({ args }) {
     const config = getConfig()
     try {
+      const pool = await fetchPoolById(args.poolId)
+      if (!pool) return `Pool #${args.poolId} not found.`
+
+      if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+        const web2 = await fetchWeb2PoolById(args.poolId)
+        if (!web2) return `Web2 metadata not found for pool #${args.poolId}.`
+
+        const matchId = decodeShortString(web2.match_id, 'match_id')
+        const player1Tag = decodeShortString(web2.player_1_tag, 'player_1_tag')
+        const player2Tag = decodeShortString(web2.player_2_tag, 'player_2_tag')
+
+        const { calldata: proofCalldata } = await generateRiotReclaimProof(
+          matchId,
+          player1Tag,
+          player2Tag
+        )
+        const calldata = [args.poolId.toString(), ...proofCalldata]
+
+        const txHash = await executeAndWait([
+          {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settleWeb2Pool,
+            calldata,
+          },
+        ])
+        return `Web2 pool #${args.poolId} settled — tx: ${txHash}`
+      }
+
       const txHash = await executeAndWait([
         {
           contractAddress: config.ESCROW_ADDRESS,
@@ -130,10 +173,42 @@ agent.addCapability({
         continue
       }
 
-      const call = {
-        contractAddress: config.ESCROW_ADDRESS,
-        entrypoint: ENTRYPOINTS.settlePool,
-        calldata: [pool.pool_id.toString()],
+      let call: { contractAddress: string; entrypoint: string; calldata: string[] }
+      try {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+          const web2 = await fetchWeb2PoolById(poolId)
+          if (!web2) {
+            cooldown.markFailed(poolId)
+            results.push(`Pool #${poolId} missing Web2 metadata`)
+            continue
+          }
+
+          const matchId = decodeShortString(web2.match_id, 'match_id')
+          const player1Tag = decodeShortString(web2.player_1_tag, 'player_1_tag')
+          const player2Tag = decodeShortString(web2.player_2_tag, 'player_2_tag')
+
+          const { calldata: proofCalldata } = await generateRiotReclaimProof(
+            matchId,
+            player1Tag,
+            player2Tag
+          )
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settleWeb2Pool,
+            calldata: [poolId.toString(), ...proofCalldata],
+          }
+        } else {
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settlePool,
+            calldata: [pool.pool_id.toString()],
+          }
+        }
+      } catch (err: any) {
+        const msg = err?.message ?? String(err)
+        cooldown.markFailed(poolId)
+        results.push(`Pool #${poolId} proof/error: ${msg}`)
+        continue
       }
 
       // Simulate first — free RPC call, no gas spent
@@ -169,8 +244,96 @@ agent.addCapability({
 })
 
 // -----------------------------------------------------------------------
-// Provision & Run
+// Local autonomous loop (bypasses OpenServ tunnel)
 // -----------------------------------------------------------------------
+
+const SETTLE_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
+
+async function runSettleCycle() {
+  console.log(`[settler] ⏱ Starting settle cycle at ${new Date().toISOString()}`)
+  try {
+    const config = getConfig()
+    const pools = await fetchOpenPools()
+
+    if (pools.length === 0) {
+      console.log('[settler] No open pools to settle.')
+      return
+    }
+
+    const candidates = pools.filter((p) => BigInt(p.total_pot || 0) > 0n)
+    if (candidates.length === 0) {
+      console.log(`[settler] Found ${pools.length} open pools but none have bets.`)
+      return
+    }
+
+    let settled = 0
+    let skipped = 0
+    let simFailed = 0
+
+    for (const pool of candidates) {
+      const poolId = Number(pool.pool_id)
+      if (cooldown.isOnCooldown(poolId)) {
+        skipped++
+        continue
+      }
+
+      let call: { contractAddress: string; entrypoint: string; calldata: string[] }
+      try {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+          const web2 = await fetchWeb2PoolById(poolId)
+          if (!web2) {
+            cooldown.markFailed(poolId)
+            continue
+          }
+          const matchId = decodeShortString(web2.match_id, 'match_id')
+          const player1Tag = decodeShortString(web2.player_1_tag, 'player_1_tag')
+          const player2Tag = decodeShortString(web2.player_2_tag, 'player_2_tag')
+          const { calldata: proofCalldata } = await generateRiotReclaimProof(matchId, player1Tag, player2Tag)
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settleWeb2Pool,
+            calldata: [poolId.toString(), ...proofCalldata],
+          }
+        } else {
+          call = {
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.settlePool,
+            calldata: [pool.pool_id.toString()],
+          }
+        }
+      } catch (err: any) {
+        cooldown.markFailed(poolId)
+        continue
+      }
+
+      const wouldSucceed = await simulateCall([call])
+      if (!wouldSucceed) {
+        cooldown.markFailed(poolId)
+        simFailed++
+        continue
+      }
+
+      try {
+        const txHash = await executeAndWait([call])
+        cooldown.clear(poolId)
+        settled++
+        console.log(`[settler] ✅ Settled pool #${poolId} — tx: ${txHash}`)
+      } catch (err: any) {
+        cooldown.markFailed(poolId)
+      }
+    }
+
+    const parts = [
+      `checked ${candidates.length} pools`,
+      settled > 0 ? `settled ${settled}` : null,
+      simFailed > 0 ? `${simFailed} not ready` : null,
+      skipped > 0 ? `${skipped} on cooldown` : null,
+    ].filter(Boolean)
+    console.log(`[settler] 🏁 ${parts.join(', ')}`)
+  } catch (err: any) {
+    console.error(`[settler] ❌ Cycle error: ${err?.message ?? err}`)
+  }
+}
 
 async function main() {
   const config = loadConfig()
@@ -182,26 +345,17 @@ async function main() {
     return
   }
 
-  await provision({
-    agent: {
-      instance: agent,
-      name: 'shobu-settler',
-      description:
-        'Monitors open betting pools and automatically settles them when their underlying games finish. Settlement is permissionless.',
-    },
-    workflow: {
-      name: 'Shobu Auto Settler',
-      trigger: triggers.cron({ schedule: '*/2 * * * *' }),
-      task: {
-        description:
-          'Continuously scan open betting pools on the Shobu protocol. For each pool whose game has finished, call the permissionless settle_pool function to finalize the result and enable winner payouts.',
-      },
-    },
-  })
+  console.log(`[settler] 🚀 Running in local autonomous mode (interval: ${SETTLE_INTERVAL_MS / 1000}s)`)
 
-  dotenv.config({ override: true })
+  // Run first cycle immediately
+  await runSettleCycle()
 
-  await run(agent)
+  // Then run on interval
+  setInterval(() => {
+    runSettleCycle().catch((err) =>
+      console.error('[settler] interval error:', err?.message ?? err)
+    )
+  }, SETTLE_INTERVAL_MS)
 }
 
 main().catch((err) => {

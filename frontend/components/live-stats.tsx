@@ -1,16 +1,19 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { useSearchParams } from 'next/navigation';
 import { useBettingPool, useDenshokanConfig, usePoolOdds } from '@/hooks/use-dojo-betting';
 import { useEgsTokenStats } from '@/hooks/use-egs-stats';
 import { useEgs } from '@/providers/egs-provider';
 import { web3Config } from '@/lib/web3-config';
 import { normalizeAddress } from '@/lib/address-utils';
 
-export function LiveStats() {
-  const poolId = web3Config.activePoolId;
+function LiveStatsContent() {
+  const searchParams = useSearchParams();
+  const poolIdParam = searchParams.get('poolId');
+  const poolId = poolIdParam ? parseInt(poolIdParam, 10) : web3Config.activePoolId;
   const { data: pool } = useBettingPool(poolId);
   const odds = usePoolOdds(poolId);
   const { data: denshokanConfig } = useDenshokanConfig();
@@ -56,6 +59,15 @@ export function LiveStats() {
     [odds.impliedP2, totals.shareP2, totals.totalOnP2, liveEventCount, egsP2.score]
   );
 
+  const formatScore = (val: number) => {
+    if (!val) return "0";
+    const inTokens = val / 1e18;
+    return new Intl.NumberFormat('en-US', {
+      notation: "compact",
+      maximumFractionDigits: 2
+    }).format(inTokens);
+  };
+
   const StatCard = ({ 
     title, 
     player, 
@@ -67,12 +79,12 @@ export function LiveStats() {
     stats: typeof playerA;
     accentColor: string;
   }) => (
-    <Card className="bg-slate-900/50 border-slate-700/50">
-      <CardHeader className="pb-3">
-        <CardTitle className={`text-sm font-semibold ${accentColor}`}>{title}</CardTitle>
-        <p className="text-xs text-gray-400">{player}</p>
+    <Card className="bg-slate-900/50 border-slate-700/50 flex flex-col">
+      <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
+        <CardTitle className={`text-xs sm:text-sm font-semibold ${accentColor}`}>{title}</CardTitle>
+        <p className="text-[10px] sm:text-xs text-gray-400">{player}</p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-3 sm:p-6 pt-0 space-y-3 sm:space-y-4">
         {/* Health Bar */}
         <div>
           <div className="flex justify-between items-center mb-2">
@@ -99,13 +111,13 @@ export function LiveStats() {
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-700/50">
-          <div className="space-y-1">
-            <p className="text-xs text-gray-400">Kills</p>
-            <p className="text-lg font-bold text-neon-purple">{stats.kills}</p>
+          <div className="space-y-1 min-w-0">
+            <p className="text-[10px] sm:text-xs text-gray-400">Kills</p>
+            <p className={`text-base sm:text-lg font-bold truncate ${accentColor}`}>{stats.kills}</p>
           </div>
-          <div className="space-y-1">
-            <p className="text-xs text-gray-400">Score</p>
-            <p className="text-lg font-bold text-neon-blue">{stats.score}</p>
+          <div className="space-y-1 min-w-0">
+            <p className="text-[10px] sm:text-xs text-gray-400">Score</p>
+            <p className={`text-base sm:text-lg font-bold truncate ${accentColor}`} title={stats.score.toString()}>{formatScore(stats.score)}</p>
           </div>
         </div>
       </CardContent>
@@ -113,7 +125,7 @@ export function LiveStats() {
   );
 
   return (
-    <div className="grid grid-cols-2 gap-4 h-full">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 h-full">
       <StatCard 
         title="Player A - Champion"
         player="@PlayerA_Champion"
@@ -127,5 +139,13 @@ export function LiveStats() {
         accentColor="text-neon-blue"
       />
     </div>
+  );
+}
+
+export function LiveStats() {
+  return (
+    <Suspense fallback={<div className="p-4 text-center">Loading stats...</div>}>
+      <LiveStatsContent />
+    </Suspense>
   );
 }

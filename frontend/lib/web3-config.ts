@@ -123,7 +123,7 @@ function isValidStarknetAddress(addr?: string): boolean {
 }
 
 const PLACEHOLDER_POLICY_ADDRESSES = new Set(
-  [DEFAULT_STRKBTC_ADDRESS, DEFAULT_STRK20_ADDRESS].map((addr) =>
+  [DEFAULT_USDC_ADDRESS, DEFAULT_WBTC_ADDRESS, DEFAULT_STRKBTC_ADDRESS, DEFAULT_STRK20_ADDRESS].map((addr) =>
     normalizeAddress(addr).toLowerCase()
   )
 );

@@ -30,9 +30,12 @@ function createSessionPolicies(escrowAddress: string) {
           { name: 'Create Pool', entrypoint: ENTRYPOINTS.createPool },
           { name: 'Create EGS Pool', entrypoint: ENTRYPOINTS.createEgsPool },
           { name: 'Create Budokan Pool', entrypoint: ENTRYPOINTS.createBudokanPool },
+          { name: 'Create Web2 Pool', entrypoint: ENTRYPOINTS.createWeb2Pool },
           { name: 'Settle Pool', entrypoint: ENTRYPOINTS.settlePool },
+          { name: 'Settle Web2 Pool', entrypoint: ENTRYPOINTS.settleWeb2Pool },
           { name: 'Cancel Pool', entrypoint: ENTRYPOINTS.cancelPool },
           { name: 'Set Pool Manager', entrypoint: ENTRYPOINTS.setPoolManager },
+          { name: 'Configure Web2 Oracle', entrypoint: ENTRYPOINTS.configureWeb2Oracle },
         ],
       },
     },
@@ -246,4 +249,3 @@ export class SettlementCooldown {
     return this.failures.size
   }
 }
-

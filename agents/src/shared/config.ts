@@ -45,6 +45,15 @@ const envSchema = z.object({
   BUDOKAN_ADDRESS: z.string().default('0x0'),
   ESCROW_ADDRESS: z.string().min(1, 'ESCROW_ADDRESS is required'),
 
+  // Pistols at 10 Blocks (FOCG)
+  PISTOLS_TORII_URL: z
+    .string()
+    .url()
+    .default('https://api.cartridge.gg/x/pistols-sepolia/torii'),
+  PISTOLS_ADAPTER_ADDRESS: z
+    .string()
+    .default('0x1350566404cc897e53c6562bcdeeed5dd6aa000d6973664747873e44c2e572d'),
+
   // Betting defaults
   POOL_TOKEN: z
     .string()
@@ -65,6 +74,24 @@ const envSchema = z.object({
   DEADLINE_BUFFER_SECONDS: z.coerce.number().int().nonnegative().default(120),
   DEFAULT_DEADLINE_SECONDS: z.coerce.number().int().positive().default(1800),
   MAX_POOLS_PER_TICK: z.coerce.number().int().positive().default(5),
+
+  // Riot (Web2)
+  RIOT_API_KEY: z.string().default(''),
+  RIOT_REGION: z.string().default('americas'),
+  WATCHED_RIOT_PLAYERS: z
+    .string()
+    .default('')
+    .describe('Comma-separated Riot IDs to autonomously monitor, e.g. Doublelift#NA1,Faker#KR1'),
+  RIOT_POOL_CREATOR_ADDRESS: z
+    .string()
+    .default('')
+    .describe('Starknet address used as player placeholders when auto-creating Riot pools'),
+
+  // Reclaim zkTLS
+  RECLAIM_PROVIDER_ID: z.string().default(''),
+  RECLAIM_APP_ID: z.string().default(''),
+  RECLAIM_APP_SECRET: z.string().default(''),
+  RECLAIM_PROVER_URL: z.string().url().optional().or(z.literal('')).default(''),
 
   // Chain
   CHAIN_ID: z.string().default('0x534e5f5345504f4c4941'),

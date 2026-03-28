@@ -4,6 +4,7 @@
 
 export const MODELS = {
   BettingPool: 'shobu-BettingPool',
+  Web2BettingPool: 'shobu-Web2BettingPool',
   Bet: 'shobu-Bet',
   OddsSnapshot: 'shobu-OddsSnapshot',
   ProtocolConfig: 'shobu-ProtocolConfig',
@@ -22,7 +23,9 @@ export const ENTRYPOINTS = {
   createPool: 'create_pool',
   createEgsPool: 'create_egs_pool',
   createBudokanPool: 'create_budokan_pool',
+  createWeb2Pool: 'create_web2_pool',
   settlePool: 'settle_pool',
+  settleWeb2Pool: 'settle_web2_pool',
   cancelPool: 'cancel_pool',
   placeBet: 'place_bet',
   claimWinnings: 'claim_winnings',
@@ -33,6 +36,7 @@ export const ENTRYPOINTS = {
   configureProtocol: 'configure_protocol',
   configureDenshokan: 'configure_denshokan',
   configureBudokan: 'configure_budokan',
+  configureWeb2Oracle: 'configure_web2_oracle',
   claimProtocolFees: 'claim_protocol_fees',
 } as const
 
@@ -54,6 +58,7 @@ export const SETTLEMENT_MODE = {
   DIRECT: 0,    // IGameWorld settlement
   EGS: 1,       // Denshokan/EGS settlement
   BUDOKAN: 2,   // Budokan tournament settlement
+  WEB2_ZKTLS: 3, // Web2 zkTLS settlement
 } as const
 
 // -----------------------------------------------------------------------

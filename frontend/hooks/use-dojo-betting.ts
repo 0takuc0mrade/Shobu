@@ -32,6 +32,15 @@ export type BettingPoolModel = {
   player_2?: string;
 };
 
+export type Web2BettingPoolModel = {
+  pool_id?: string;
+  match_id?: string;
+  game_provider_id?: string;
+  player_1_tag?: string;
+  player_2_tag?: string;
+  proof_nullifier_used?: boolean;
+};
+
 export type OddsSnapshotModel = {
   pool_id?: string;
   implied_prob_p1?: string;
@@ -77,6 +86,10 @@ const POOL_FIELDS = `
   bettor_count_p1 bettor_count_p2 winning_player winning_total
   distributable_amount claimed_amount claimed_winner_count
   protocol_fee_amount creator deadline player_1 player_2
+`;
+
+const WEB2_POOL_FIELDS = `
+  pool_id match_id game_provider_id player_1_tag player_2_tag proof_nullifier_used
 `;
 
 // -----------------------------------------------------------------------
@@ -166,6 +179,42 @@ export function useBettingPool(poolId: number) {
   }, [poolId]);
 
   return { data, loading, error };
+}
+
+export function useWeb2BettingPool(poolId: number) {
+  const [data, setData] = useState<Web2BettingPoolModel | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchPool() {
+      try {
+        const res = await graphqlQuery(`
+          query {
+            shobuWeb2BettingPoolModels(where: { pool_id: ${poolId} }, limit: 1) {
+              edges { node { ${WEB2_POOL_FIELDS} } }
+            }
+          }
+        `);
+        const item = extractEdges<Web2BettingPoolModel>(res, "shobuWeb2BettingPoolModels")[0] ?? null;
+        if (active) {
+          setData(item);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (active) setLoading(false);
+      }
+    }
+
+    fetchPool();
+    const interval = setInterval(fetchPool, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [poolId]);
+
+  return { data, loading };
 }
 
 export function useOddsSnapshot(poolId: number) {

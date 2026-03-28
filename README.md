@@ -180,6 +180,7 @@ Shobu is evolving into a fully autonomous, cross-chain betting infrastructure. O
 - **ERC-8004 Identity**: Register all agents on the Base blockchain for on-chain verifiability and discovery.
 - **Cloud Deployment**: Transition from local tunneling to 24/7 managed hosting on OpenServ Cloud.
 - **Protocol Audit Trails**: Implement structured logging and persistent file uploads for full operational transparency.
+- **zkTLS Research & POC**: Study zkTLS (e.g., Reclaim) and prototype Web2 match settlement proofs for Starknet.
 
 ### Phase 2: Monetization & Ecosystem
 - **x402 Paid Analysis**: Enable paid API calls for the Analyst agent to provide premium market intelligence.

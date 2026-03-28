@@ -4,12 +4,19 @@ dotenv.config()
 import { Agent, run } from '@openserv-labs/sdk'
 import { provision, triggers } from '@openserv-labs/client'
 import { z } from 'zod'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const WATCHLIST_PATH = path.join(__dirname, '../shared/watchlist.json')
 
 import { loadConfig, getConfig } from '../shared/config.js'
 import { initSession, executeAndWait, normalizeAddress } from '../shared/starknet.js'
 import { fetchAllPools, type BettingPoolModel } from '../shared/torii.js'
 import { ENTRYPOINTS } from '../shared/constants.js'
-
+import { encodeShortString } from '../shared/encoding.js'
+import { getAccountByRiotId, getActiveGame } from '../shared/riot.js'
 // -----------------------------------------------------------------------
 // Feed parsing helpers (ported from pool-manager.mjs)
 // -----------------------------------------------------------------------
@@ -554,9 +561,432 @@ agent.addCapability({
   },
 })
 
+// --- Capability: create_web2_pool ---
+agent.addCapability({
+  name: 'create_web2_pool',
+  description:
+    'Create a Web2 zkTLS betting pool for a Riot match with explicit player tags.',
+  inputSchema: z.object({
+    matchId: z.string().describe('Riot match ID (e.g., NA1_4123456789)'),
+    gameProviderId: z.string().optional().describe('Game provider ID (defaults to RIOT_LOL)'),
+    token: z.string().optional().describe('ERC20 token address (defaults to STRK)'),
+    deadline: z.number().int().describe('Betting deadline as unix timestamp'),
+    player1: z.string().describe('Player 1 Starknet address'),
+    player2: z.string().describe('Player 2 Starknet address'),
+    player1Tag: z.string().describe('Player 1 Riot tag (gameName#tagLine)'),
+    player2Tag: z.string().describe('Player 2 Riot tag (gameName#tagLine)'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+    const token = normalizeAddress(args.token ?? config.POOL_TOKEN)
+    const providerId = args.gameProviderId ?? 'RIOT_LOL'
+
+    const calldata = [
+      encodeShortString(args.matchId, 'match_id'),
+      encodeShortString(providerId, 'game_provider_id'),
+      token,
+      args.deadline.toString(),
+      normalizeAddress(args.player1),
+      normalizeAddress(args.player2),
+      encodeShortString(args.player1Tag, 'player_1_tag'),
+      encodeShortString(args.player2Tag, 'player_2_tag'),
+    ]
+
+    const txHash = await executeAndWait([
+      {
+        contractAddress: config.ESCROW_ADDRESS,
+        entrypoint: ENTRYPOINTS.createWeb2Pool,
+        calldata,
+      },
+    ])
+    return `Web2 pool created — tx: ${txHash}`
+  },
+})
+
+// --- Capability: scan_riot_match ---
+agent.addCapability({
+  name: 'scan_riot_match',
+  description:
+    'Scan Riot Games for a live match involving a specific player and automatically deploy a Web2 betting pool for it.',
+  inputSchema: z.object({
+    gameName: z.string().describe('Riot ID Game Name (e.g. Doublelift)'),
+    tagLine: z.string().describe('Riot ID Tagline (e.g. NA1)'),
+    token: z.string().optional().describe('ERC20 token address (defaults to STRK)'),
+    starknetBettor: z.string().describe('Your starknet address to track the pool creator'),
+  }),
+  async run({ args }) {
+    const account = await getAccountByRiotId(args.gameName, args.tagLine)
+    if (!account) return `Could not find Riot account for ${args.gameName}#${args.tagLine}`
+
+    const liveGame = await getActiveGame(account.puuid)
+    if (!liveGame || !liveGame.participants || liveGame.participants.length < 2) {
+      return `${args.gameName}#${args.tagLine} is not currently in a live match.`
+    }
+
+    const p1 = liveGame.participants[0]
+    const p2 = liveGame.participants.find(p => p.puuid !== p1.puuid) || liveGame.participants[1]
+    
+    const extractTag = (puuid: string, fallbackId: string) => {
+       if (puuid === account.puuid) return `${args.gameName}#${args.tagLine}`
+       return fallbackId || 'Unknown#NA1'
+    }
+
+    const p1Tag = extractTag(p1.puuid, p1.riotId)
+    const p2Tag = extractTag(p2.puuid, p2.riotId)
+    
+    const matchId = `NA1_${liveGame.gameId}`
+    const deadline = Math.floor(Date.now() / 1000) + 1800
+
+    const config = getConfig()
+    const token = normalizeAddress(args.token ?? config.POOL_TOKEN)
+
+    // Contract requires player1 != player2
+    const addr1 = normalizeAddress(args.starknetBettor)
+    const addr2 = addr1.slice(0, -1) + (addr1.endsWith('e') ? 'f' : 'e')
+
+    const calldata = [
+      encodeShortString(matchId, 'match_id'),
+      encodeShortString('RIOT_LOL', 'game_provider_id'),
+      token,
+      deadline.toString(),
+      addr1,
+      addr2,
+      encodeShortString(p1Tag, 'player_1_tag'),
+      encodeShortString(p2Tag, 'player_2_tag'),
+    ]
+
+    const txHash = await executeAndWait([{
+      contractAddress: config.ESCROW_ADDRESS,
+      entrypoint: ENTRYPOINTS.createWeb2Pool,
+      calldata
+    }])
+
+    return `Found live match ${matchId} for ${args.gameName}! Automatically deployed Web2 Pool — tx: ${txHash}`
+  }
+})
+
+// --- Capability: auto_scan_riot ---
+// Fully autonomous: reads WATCHED_RIOT_PLAYERS from config, checks each
+// player for a live game, and deploys Web2 pools without any human input.
+const riotPoolsCreatedThisSession = new Set<string>()
+let riotWatchlistBatchIndex = 0
+const BATCH_SIZE = 20
+
+agent.addCapability({
+  name: 'auto_scan_riot',
+  description:
+    'Autonomously scan a batched subset of watched Riot players from watchlist.json for live matches to avoid Riot API rate limits.',
+  inputSchema: z.object({}),
+  async run() {
+    const config = getConfig()
+
+    if (!config.RIOT_API_KEY) {
+      return 'Skipping Riot scan: RIOT_API_KEY is not configured.'
+    }
+
+    let watchlist: string[] = []
+    try {
+      const data = fs.readFileSync(WATCHLIST_PATH, 'utf-8')
+      watchlist = JSON.parse(data)
+    } catch (err: any) {
+      return `Failed to read watchlist.json: ${err.message}`
+    }
+
+    if (watchlist.length === 0) {
+      return 'Skipping Riot scan: watchlist.json is empty.'
+    }
+
+    const startIdx = riotWatchlistBatchIndex
+    let endIdx = startIdx + BATCH_SIZE
+    const currentBatch = watchlist.slice(startIdx, endIdx)
+
+    if (endIdx >= watchlist.length) endIdx = 0
+    riotWatchlistBatchIndex = endIdx
+
+    const creatorAddr = config.RIOT_POOL_CREATOR_ADDRESS || config.CARTRIDGE_ADDRESS
+    if (!creatorAddr) {
+      return 'Skipping Riot scan: RIOT_POOL_CREATOR_ADDRESS is not set.'
+    }
+
+    const results: string[] = []
+    let created = 0
+
+    for (const riotId of currentBatch) {
+      const [gameName, tagLine] = riotId.split('#')
+      if (!gameName || !tagLine) {
+        results.push(`⚠️ Skipping invalid Riot ID format: "${riotId}" (expected GameName#TagLine)`)
+        continue
+      }
+
+      try {
+        const account = await getAccountByRiotId(gameName, tagLine)
+        if (!account) {
+          results.push(`❌ ${riotId}: Account not found on Riot`)
+          continue
+        }
+
+        const liveGame = await getActiveGame(account.puuid)
+        if (!liveGame || !liveGame.participants || liveGame.participants.length < 2) {
+          results.push(`⏸ ${riotId}: Not in a live match`)
+          continue
+        }
+
+        const matchId = `NA1_${liveGame.gameId}`
+
+        // Prevent duplicate pool creation for the same match
+        if (riotPoolsCreatedThisSession.has(matchId)) {
+          results.push(`⏩ ${riotId}: Pool already created for match ${matchId} this session`)
+          continue
+        }
+
+        // Extract participant tags
+        const p1 = liveGame.participants[0]
+        const p2 = liveGame.participants.find(p => p.puuid !== p1.puuid) || liveGame.participants[1]
+
+        const extractTag = (puuid: string, fallbackId: string) => {
+          if (puuid === account.puuid) return `${gameName}#${tagLine}`
+          return fallbackId || 'Opponent#NA1'
+        }
+
+        const p1Tag = extractTag(p1.puuid, p1.riotId)
+        const p2Tag = extractTag(p2.puuid, p2.riotId)
+
+        const deadline = Math.floor(Date.now() / 1000) + 1800
+        const token = normalizeAddress(config.POOL_TOKEN)
+
+        // Contract requires player1 != player2
+        const addr1 = normalizeAddress(creatorAddr)
+        const addr2 = addr1.slice(0, -1) + (addr1.endsWith('e') ? 'f' : 'e')
+
+        const calldata = [
+          encodeShortString(matchId, 'match_id'),
+          encodeShortString('RIOT_LOL', 'game_provider_id'),
+          token,
+          deadline.toString(),
+          addr1,
+          addr2,
+          encodeShortString(p1Tag, 'player_1_tag'),
+          encodeShortString(p2Tag, 'player_2_tag'),
+        ]
+
+        const txHash = await executeAndWait([{
+          contractAddress: config.ESCROW_ADDRESS,
+          entrypoint: ENTRYPOINTS.createWeb2Pool,
+          calldata
+        }])
+
+        riotPoolsCreatedThisSession.add(matchId)
+        created++
+        results.push(`🎮 ${riotId}: LIVE in ${matchId}! Pool deployed — tx: ${txHash}`)
+      } catch (err: any) {
+        results.push(`❌ ${riotId}: ${err?.message ?? err}`)
+      }
+    }
+
+    if (results.length === 0) return `Riot scan complete (batch ${startIdx}-${startIdx + currentBatch.length}) — no open games or all watched players failed.`
+    return `Riot Auto-Scan (batch ${startIdx}-${startIdx + currentBatch.length}, ${created} pools created):\n${results.join('\n')}`
+  }
+})
+
+// --- Capability: auto_scan_pistols ---
+// Scans the Pistols at 10 Blocks FOCG Torii endpoint for active duels
+// and creates direct-mode pools using the PistolsAdapter contract.
+const pistolsPoolsCreatedThisSession = new Set<string>()
+
+agent.addCapability({
+  name: 'auto_scan_pistols',
+  description:
+    'Autonomously scan the Pistols at 10 Blocks Torii GraphQL endpoint for active duels and create direct-mode betting pools via the PistolsAdapter contract.',
+  inputSchema: z.object({
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe('If true, log what would be created without executing transactions'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+    const nowSec = Math.floor(Date.now() / 1000)
+
+    if (!config.PISTOLS_ADAPTER_ADDRESS || config.PISTOLS_ADAPTER_ADDRESS === '0x0') {
+      return 'Skipping Pistols scan: PISTOLS_ADAPTER_ADDRESS is not configured.'
+    }
+
+    const graphqlUrl = config.PISTOLS_TORII_URL.replace(/\/graphql\/?$/, '') + '/graphql'
+
+    // Query Pistols Torii for InProgress duels
+    // Torii returns state as enum string ("InProgress"), not integer
+    const query = `{
+      pistolsChallengeModels(
+        limit: 20
+        where: { stateEQ: "InProgress" }
+      ) {
+        edges {
+          node {
+            duel_id
+            address_a
+            address_b
+            state
+            winner
+          }
+        }
+      }
+    }`
+
+    let duels: any[] = []
+    try {
+      const res = await fetch(graphqlUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      })
+      if (!res.ok) throw new Error(`Pistols Torii HTTP ${res.status}`)
+      const json = await res.json()
+      if (json.errors) {
+        // Try without filter if where clause isn't supported
+        const fallbackQuery = `{
+          pistolsChallengeModels(limit: 30) {
+            edges {
+              node {
+                duel_id
+                address_a
+                address_b
+                state
+                winner
+              }
+            }
+          }
+        }`
+        const fallbackRes = await fetch(graphqlUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: fallbackQuery }),
+        })
+        if (!fallbackRes.ok) throw new Error(`Pistols Torii fallback HTTP ${fallbackRes.status}`)
+        const fallbackJson = await fallbackRes.json()
+        duels = (fallbackJson?.data?.pistolsChallengeModels?.edges ?? [])
+          .map((e: any) => e.node)
+          .filter((d: any) => d && (d.state === 'InProgress' || d.state === 5))
+      } else {
+        duels = (json?.data?.pistolsChallengeModels?.edges ?? []).map((e: any) => e.node)
+      }
+    } catch (err: any) {
+      return `Pistols Torii query failed: ${err?.message ?? err}`
+    }
+
+    if (duels.length === 0) return 'Pistols scan complete — no active duels found.'
+
+    // Fetch existing on-chain pools to avoid duplicates
+    let existingPools: BettingPoolModel[] = []
+    try {
+      existingPools = await fetchAllPools()
+    } catch (err: any) {
+      return `Shobu Torii query failed: ${err?.message ?? err}`
+    }
+
+    const adapterAddr = normalizeAddress(config.PISTOLS_ADAPTER_ADDRESS)
+    const existingKeys = new Set(
+      existingPools.map((pool) => `${normalizeAddress(pool.game_world)}:${Number(pool.game_id)}`)
+    )
+
+    const results: string[] = []
+    let created = 0
+
+    for (const duel of duels) {
+      if (created >= config.MAX_POOLS_PER_TICK) break
+
+      const duelId = Number(duel.duel_id)
+      if (Number.isNaN(duelId) || duelId <= 0) continue
+
+      const poolKey = `${adapterAddr}:${duelId}`
+      if (existingKeys.has(poolKey) || pistolsPoolsCreatedThisSession.has(poolKey)) {
+        continue
+      }
+
+      // 30-minute betting window for an active duel
+      const deadline = nowSec + 1800
+
+      if (args.dryRun) {
+        const addrA = duel.address_a ? `${String(duel.address_a).slice(0, 10)}...` : '?'
+        const addrB = duel.address_b ? `${String(duel.address_b).slice(0, 10)}...` : '?'
+        results.push(`[DRY RUN] Would create Pistols pool for duel #${duelId} (${addrA} vs ${addrB})`)
+        created++
+        continue
+      }
+
+      try {
+        const calldata = [
+          adapterAddr,                // game_world = PistolsAdapter
+          duelId.toString(),          // game_id = duel_id
+          config.POOL_TOKEN,          // token
+          deadline.toString(),        // deadline
+        ]
+
+        const txHash = await executeAndWait([{
+          contractAddress: config.ESCROW_ADDRESS,
+          entrypoint: ENTRYPOINTS.createPool,
+          calldata,
+        }])
+
+        pistolsPoolsCreatedThisSession.add(poolKey)
+        existingKeys.add(poolKey)
+        created++
+        results.push(`🔫 Created Pistols pool for duel #${duelId} — tx: ${txHash}`)
+      } catch (err: any) {
+        results.push(`❌ Failed to create pool for duel #${duelId}: ${err?.message ?? err}`)
+      }
+    }
+
+    if (results.length === 0) return 'Pistols scan complete — all active duels already have pools.'
+    return `Pistols Auto-Scan (${created} pools created):\n${results.join('\n')}`
+  },
+})
+
 // -----------------------------------------------------------------------
-// Provision & Run
+// Local autonomous loop (bypasses OpenServ tunnel)
 // -----------------------------------------------------------------------
+
+const SCAN_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function runScanCycle() {
+  console.log(`[pool-creator] ⏱ Starting scan cycle at ${new Date().toISOString()}`)
+
+  // Find the capability run functions
+  const autoScan = (agent as any)._capabilities?.find((c: any) => c.name === 'auto_scan')
+  const pistolsScan = (agent as any)._capabilities?.find((c: any) => c.name === 'auto_scan_pistols')
+  const riotScan = (agent as any)._capabilities?.find((c: any) => c.name === 'auto_scan_riot')
+
+  // 1. EGS/Budokan scan
+  if (autoScan?.run) {
+    try {
+      const result = await autoScan.run({ args: { dryRun: false }, action: {} })
+      console.log(`[pool-creator] 🔍 EGS scan: ${result}`)
+    } catch (err: any) {
+      console.error(`[pool-creator] ❌ EGS scan error: ${err?.message ?? err}`)
+    }
+  }
+
+  // 2. Pistols scan
+  if (pistolsScan?.run) {
+    try {
+      const result = await pistolsScan.run({ args: { dryRun: false }, action: {} })
+      console.log(`[pool-creator] 🔫 Pistols scan: ${result}`)
+    } catch (err: any) {
+      console.error(`[pool-creator] ❌ Pistols scan error: ${err?.message ?? err}`)
+    }
+  }
+
+  // 3. Riot scan
+  if (riotScan?.run) {
+    try {
+      const result = await riotScan.run({ args: {}, action: {} })
+      console.log(`[pool-creator] 🎮 Riot scan: ${result}`)
+    } catch (err: any) {
+      console.error(`[pool-creator] ❌ Riot scan error: ${err?.message ?? err}`)
+    }
+  }
+
+  console.log(`[pool-creator] 🏁 Scan cycle complete`)
+}
 
 async function main() {
   const config = loadConfig()
@@ -568,30 +998,24 @@ async function main() {
     return
   }
 
-  await provision({
-    agent: {
-      instance: agent,
-      name: 'shobu-pool-creator',
-      description:
-        'Monitors game feeds and automatically creates betting pools on the Shobu protocol for new games.',
-    },
-    workflow: {
-      name: 'Shobu Pool Creator',
-      trigger: triggers.cron({ schedule: '*/5 * * * *' }),
-      task: {
-        description:
-          'Monitor game feeds from the denshokan API, compare against existing on-chain betting pools, and automatically create new pools for games that need one — supporting both direct IGameWorld and EGS denshokan settlement modes.',
-      },
-    },
-  })
+  console.log(`[pool-creator] 🚀 Running in local autonomous mode (interval: ${SCAN_INTERVAL_MS / 1000}s)`)
 
-  // Reload env after provision writes credentials
-  dotenv.config({ override: true })
+  // Run first cycle immediately
+  await runScanCycle()
 
-  await run(agent)
+  // Then run on interval
+  setInterval(() => {
+    runScanCycle().catch((err) =>
+      console.error('[pool-creator] interval error:', err?.message ?? err)
+    )
+  }, SCAN_INTERVAL_MS)
 }
 
 main().catch((err) => {
-  console.error('[pool-creator] fatal:', err instanceof Error ? err.message : err)
+  if (err?.response?.data) {
+    console.error('[pool-creator] fatal:', JSON.stringify({ status: err.response.status, data: err.response.data }))
+  } else {
+    console.error('[pool-creator] fatal:', err instanceof Error ? err.message : err)
+  }
   process.exit(1)
 })

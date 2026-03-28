@@ -1,4 +1,5 @@
 use starknet::ContractAddress;
+use shobu::interfaces::Proof;
 
 #[starknet::interface]
 pub trait IEscrow<T> {
@@ -24,8 +25,20 @@ pub trait IEscrow<T> {
     /// Cancel a pool (admin or creator only). Refunds all bettors.
     fn cancel_pool(ref self: T, pool_id: u32);
 
+    /// Claim a refund from a cancelled pool.
+    fn claim_refund(ref self: T, pool_id: u32);
+
     /// Configure protocol fee parameters (admin only).
     fn configure_protocol(ref self: T, fee_bps: u16, fee_recipient: ContractAddress);
+
+    /// Pause or unpause the protocol (admin only).
+    fn set_paused(ref self: T, paused: bool);
+
+    /// Propose a new admin (admin only).
+    fn propose_admin(ref self: T, new_admin: ContractAddress);
+
+    /// Accept admin role (pending admin only).
+    fn accept_admin(ref self: T);
 
     /// Withdraw accumulated protocol fees for a token (admin only).
     fn claim_protocol_fees(ref self: T, token: ContractAddress);
@@ -45,6 +58,19 @@ pub trait IEscrow<T> {
         deadline: u64,
         egs_token_id_p1: felt252,
         egs_token_id_p2: felt252,
+    );
+
+    /// Create a betting pool for a Web2 game (zkTLS settlement, pool manager only).
+    fn create_web2_pool(
+        ref self: T,
+        match_id: felt252,
+        game_provider_id: felt252,
+        token: ContractAddress,
+        deadline: u64,
+        player_1: ContractAddress,
+        player_2: ContractAddress,
+        player_1_tag: felt252,
+        player_2_tag: felt252,
     );
 
     /// Grant or revoke pool manager permissions (admin only).
@@ -67,8 +93,14 @@ pub trait IEscrow<T> {
         deadline: u64,
     );
 
+    /// Settle a Web2 pool using a zkTLS proof.
+    fn settle_web2_pool(ref self: T, pool_id: u32, proof: Proof);
+
     /// Configure the default Budokan contract address (admin only).
     fn configure_budokan(ref self: T, default_address: ContractAddress, enabled: bool);
+
+    /// Configure the Web2 oracle verifier contract (admin only).
+    fn configure_web2_oracle(ref self: T, verifier_address: ContractAddress, enabled: bool);
 }
 
 #[dojo::contract]
@@ -78,6 +110,8 @@ pub mod Escrow {
         ContractAddress, get_block_timestamp, get_caller_address, get_contract_address, get_tx_info,
     };
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+    use core::byte_array::ByteArrayTrait;
+    use core::byte_array::ByteArray;
 
     use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
@@ -89,10 +123,12 @@ pub mod Escrow {
         IERC20Dispatcher, IERC20DispatcherTrait,
         IBudokanDispatcher, IBudokanDispatcherTrait,
         IERC721Dispatcher, IERC721DispatcherTrait,
+        IReclaimDispatcher, IReclaimDispatcherTrait,
+        Proof,
     };
     use shobu::models::{
         BettingPool, Bet, OddsSnapshot, ProtocolConfig, FeeVault, PoolCounter, DenshokanConfig,
-        PoolManager, BudokanConfig,
+        PoolManager, BudokanConfig, Web2BettingPool, Web2OracleConfig, AdminTransfer, UsedProof,
     };
     use shobu::odds::{
         compute_implied_odds, compute_stat_adjusted_odds, compute_payout, mul_div_u128_floor,
@@ -105,6 +141,7 @@ pub mod Escrow {
 
     const PROTOCOL_CONFIG_ID: u8 = 1_u8;
     const POOL_COUNTER_ID: u8 = 1_u8;
+    const ADMIN_TRANSFER_ID: u8 = 1_u8;
     const DEFAULT_FEE_BPS: u16 = 250_u16;   // 2.5% default protocol fee
     const MAX_FEE_BPS: u16 = 1000_u16;      // 10% maximum
     const POOL_OPEN: u8 = 0_u8;
@@ -113,8 +150,11 @@ pub mod Escrow {
     const SETTLE_DIRECT: u8 = 0_u8;      // IGameWorld settlement
     const SETTLE_EGS: u8 = 1_u8;         // Denshokan/EGS settlement
     const SETTLE_BUDOKAN: u8 = 2_u8;     // Budokan tournament settlement
+    const SETTLE_WEB2_ZKTLS: u8 = 3_u8;  // Web2 zkTLS settlement
     const DENSHOKAN_CONFIG_ID: u8 = 1_u8;
     const BUDOKAN_CONFIG_ID: u8 = 1_u8;
+    const WEB2_ORACLE_CONFIG_ID: u8 = 1_u8;
+    const RIOT_LOL_PROVIDER_ID: felt252 = 'RIOT_LOL';
 
     // -----------------------------------------------------------------------
     // Events
@@ -172,6 +212,40 @@ pub mod Escrow {
         #[key]
         pub pool_id: u32,
         pub cancelled_by: ContractAddress,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct refund_claimed {
+        #[key]
+        pub pool_id: u32,
+        #[key]
+        pub bettor: ContractAddress,
+        pub amount: u128,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct protocol_paused {
+        #[key]
+        pub admin: ContractAddress,
+        pub paused: bool,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct admin_transfer_proposed {
+        #[key]
+        pub new_admin: ContractAddress,
+        pub proposed_by: ContractAddress,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct admin_transfer_accepted {
+        #[key]
+        pub old_admin: ContractAddress,
+        pub new_admin: ContractAddress,
     }
 
     #[derive(Copy, Drop, Serde)]
@@ -237,6 +311,25 @@ pub mod Escrow {
         pub enabled: bool,
     }
 
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct web2_pool_created {
+        #[key]
+        pub pool_id: u32,
+        pub match_id: felt252,
+        pub game_provider_id: felt252,
+        pub player_1_tag: felt252,
+        pub player_2_tag: felt252,
+    }
+
+    #[derive(Copy, Drop, Serde)]
+    #[dojo::event]
+    pub struct web2_oracle_configured {
+        #[key]
+        pub verifier_address: ContractAddress,
+        pub enabled: bool,
+    }
+
     // -----------------------------------------------------------------------
     // Storage (reentrancy lock only — all state lives in Dojo models)
     // -----------------------------------------------------------------------
@@ -277,6 +370,19 @@ pub mod Escrow {
                 id: BUDOKAN_CONFIG_ID,
                 default_address: zero_address(),
                 enabled: false,
+            },
+        );
+        world.write_model(
+            @Web2OracleConfig {
+                id: WEB2_ORACLE_CONFIG_ID,
+                verifier_address: zero_address(),
+                enabled: false,
+            },
+        );
+        world.write_model(
+            @AdminTransfer {
+                id: ADMIN_TRANSFER_ID,
+                pending_admin: zero_address(),
             },
         );
     }
@@ -465,9 +571,10 @@ pub mod Escrow {
             let mut pool: BettingPool = world.read_model(pool_id);
             assert!(pool.status == POOL_OPEN, "Pool not open");
             assert!(pool.total_pot > 0_u128, "Pool is empty");
+            assert!(pool.settlement_mode != SETTLE_WEB2_ZKTLS, "Use settle_web2_pool");
 
             // Determine winner based on settlement mode
-            let winner = if pool.settlement_mode == SETTLE_EGS {
+            let winner_opt = if pool.settlement_mode == SETTLE_EGS {
                 // EGS settlement: check game_over and compare scores
                 let denshokan_config: DenshokanConfig = world.read_model(DENSHOKAN_CONFIG_ID);
                 assert!(denshokan_config.enabled, "Denshokan not configured");
@@ -480,9 +587,8 @@ pub mod Escrow {
 
                 let score_p1 = token_data.score(pool.egs_token_id_p1);
                 let score_p2 = token_data.score(pool.egs_token_id_p2);
-                assert!(score_p1 != score_p2, "Game is a draw - cannot settle");
 
-                if score_p1 > score_p2 { pool.player_1 } else { pool.player_2 }
+                if score_p1 == score_p2 { Option::None } else if score_p1 > score_p2 { Option::Some(pool.player_1) } else { Option::Some(pool.player_2) }
             } else if pool.settlement_mode == SETTLE_BUDOKAN {
                 // Budokan settlement: scan leaderboard to find who ranked higher
                 let budokan_config: BudokanConfig = world.read_model(BUDOKAN_CONFIG_ID);
@@ -515,24 +621,38 @@ pub mod Escrow {
                 assert!(p1_index_opt.is_some() || p2_index_opt.is_some(), "Entries not on leaderboard");
 
                 if p1_index_opt.is_some() && p2_index_opt.is_none() {
-                    pool.player_1
+                    Option::Some(pool.player_1)
                 } else if p2_index_opt.is_some() && p1_index_opt.is_none() {
-                    pool.player_2
+                    Option::Some(pool.player_2)
                 } else {
                     let p1_index = p1_index_opt.unwrap();
                     let p2_index = p2_index_opt.unwrap();
                     // Lower index = higher rank
-                    if p1_index < p2_index { pool.player_1 } else { pool.player_2 }
+                    if p1_index == p2_index { Option::None } else if p1_index < p2_index { Option::Some(pool.player_1) } else { Option::Some(pool.player_2) }
                 }
             } else {
                 // Direct settlement: read game_state from external world
                 let game_dispatcher = IGameWorldDispatcher { contract_address: pool.game_world };
                 let (state, w) = game_dispatcher.game_state(pool.game_id);
                 assert!(state == 2_u8, "Game not finished");
-                assert!(w != zero_address(), "Winner not set");
-                assert_valid_player(@pool, w);
-                w
+                if w == zero_address() {
+                    Option::None
+                } else {
+                    assert_valid_player(@pool, w);
+                    Option::Some(w)
+                }
             };
+
+            if winner_opt.is_none() {
+                // Draw scenario -> Transition to CANCELLED state to allow refunds
+                let caller = get_caller_address();
+                pool.status = POOL_CANCELLED;
+                world.write_model(@pool);
+                world.emit_event(@pool_cancelled_event { pool_id, cancelled_by: caller });
+                clear_operation_lock(ref self);
+                return;
+            }
+            let winner = winner_opt.unwrap();
 
             // Compute protocol fee
             let config: ProtocolConfig = world.read_model(PROTOCOL_CONFIG_ID);
@@ -546,6 +666,112 @@ pub mod Escrow {
                 pool.total_pot, config.fee_bps.into(), BPS_DENOM,
             );
             // If nobody bet on the winner, entire pot goes to protocol
+            let protocol_fee_amount = if winning_total == 0_u128 {
+                pool.total_pot
+            } else {
+                configured_fee
+            };
+            let distributable_amount = pool.total_pot - protocol_fee_amount;
+
+            // Accumulate fees
+            let mut fee_vault: FeeVault = world.read_model(pool.token);
+            fee_vault.token = pool.token;
+            fee_vault.accumulated += protocol_fee_amount;
+            world.write_model(@fee_vault);
+
+            // Mark pool as settled
+            pool.status = POOL_SETTLED;
+            pool.winning_player = winner;
+            pool.winning_total = winning_total;
+            pool.distributable_amount = distributable_amount;
+            pool.claimed_amount = 0_u128;
+            pool.claimed_winner_count = 0_u32;
+            pool.protocol_fee_amount = protocol_fee_amount;
+
+            world.write_model(@pool);
+            world.emit_event(
+                @pool_settled_event {
+                    pool_id,
+                    winner,
+                    total_pot: pool.total_pot,
+                    winning_total,
+                    distributable_amount,
+                    protocol_fee_amount,
+                },
+            );
+
+            clear_operation_lock(ref self);
+        }
+
+        // -------------------------------------------------------------------
+        // settle_web2_pool
+        // -------------------------------------------------------------------
+        fn settle_web2_pool(ref self: ContractState, pool_id: u32, proof: Proof) {
+            with_operation_lock(ref self);
+            let mut world = self.world_default();
+
+            let mut pool: BettingPool = world.read_model(pool_id);
+            assert!(pool.status == POOL_OPEN, "Pool not open");
+            assert!(pool.total_pot > 0_u128, "Pool is empty");
+            assert!(pool.settlement_mode == SETTLE_WEB2_ZKTLS, "Not a Web2 pool");
+
+            let mut web2_pool: Web2BettingPool = world.read_model(pool_id);
+            web2_pool.pool_id = pool_id;
+            assert!(!web2_pool.proof_nullifier_used, "Proof already used");
+
+            let mut used_proof: UsedProof = world.read_model(proof.id);
+            used_proof.proof_id = proof.id;
+            assert!(!used_proof.used, "Proof already used");
+
+            let params = proof.claim_info.parameters.clone();
+            let match_id_opt = extract_param_value(@params, @"match_id");
+            let winner_tag_opt = extract_param_value(@params, @"winner_tag");
+            let provider_id_opt = extract_param_value(@params, @"provider");
+            assert!(match_id_opt.is_some(), "Missing match_id");
+            assert!(winner_tag_opt.is_some(), "Missing winner_tag");
+            assert!(provider_id_opt.is_some(), "Missing provider");
+
+            let match_id = match_id_opt.unwrap();
+            let winner_tag = winner_tag_opt.unwrap();
+            let provider_id = provider_id_opt.unwrap();
+
+            assert!(match_id == web2_pool.match_id, "Match ID mismatch");
+            assert!(provider_id == web2_pool.game_provider_id, "Provider mismatch");
+            assert!(web2_pool.game_provider_id == RIOT_LOL_PROVIDER_ID, "Unsupported provider");
+
+            let web2_config: Web2OracleConfig = world.read_model(WEB2_ORACLE_CONFIG_ID);
+            assert!(web2_config.enabled, "Web2 oracle not configured");
+            assert!(web2_config.verifier_address != zero_address(), "Invalid verifier");
+
+            let verifier = IReclaimDispatcher { contract_address: web2_config.verifier_address };
+            verifier.verify_proof(proof);
+
+            used_proof.used = true;
+            world.write_model(@used_proof);
+
+            let winner = if winner_tag == web2_pool.player_1_tag {
+                pool.player_1
+            } else if winner_tag == web2_pool.player_2_tag {
+                pool.player_2
+            } else {
+                assert!(false, "Winner tag not in pool");
+                zero_address()
+            };
+
+            web2_pool.proof_nullifier_used = true;
+            world.write_model(@web2_pool);
+
+            // Compute protocol fee
+            let config: ProtocolConfig = world.read_model(PROTOCOL_CONFIG_ID);
+            let winning_total = if winner == pool.player_1 {
+                pool.total_on_p1
+            } else {
+                pool.total_on_p2
+            };
+
+            let configured_fee = mul_div_u128_floor(
+                pool.total_pot, config.fee_bps.into(), BPS_DENOM,
+            );
             let protocol_fee_amount = if winning_total == 0_u128 {
                 pool.total_pot
             } else {
@@ -669,6 +895,38 @@ pub mod Escrow {
         }
 
         // -------------------------------------------------------------------
+        // claim_refund
+        // -------------------------------------------------------------------
+        fn claim_refund(ref self: ContractState, pool_id: u32) {
+            with_operation_lock(ref self);
+            let mut world = self.world_default();
+            let bettor = get_caller_address();
+
+            let pool: BettingPool = world.read_model(pool_id);
+            let mut bet: Bet = world.read_model((pool_id, bettor));
+            bet.pool_id = pool_id;
+            bet.bettor = bettor;
+
+            assert!(pool.status == POOL_CANCELLED, "Pool not cancelled");
+            assert!(bet.amount > 0_u128, "No bet found");
+            assert!(!bet.claimed, "Already claimed");
+
+            let amount = bet.amount;
+            bet.claimed = true;
+            world.write_model(@bet);
+
+            if amount > 0_u128 {
+                let erc20 = IERC20Dispatcher { contract_address: pool.token };
+                let ok = erc20.transfer(bettor, to_u256(amount));
+                assert!(ok, "Refund transfer failed");
+            }
+
+            world.emit_event(@refund_claimed { pool_id, bettor, amount });
+
+            clear_operation_lock(ref self);
+        }
+
+        // -------------------------------------------------------------------
         // configure_protocol
         // -------------------------------------------------------------------
         fn configure_protocol(
@@ -686,6 +944,56 @@ pub mod Escrow {
             world.write_model(@config);
 
             world.emit_event(@protocol_fee_configured { fee_recipient, fee_bps });
+        }
+
+        // -------------------------------------------------------------------
+        // set_paused
+        // -------------------------------------------------------------------
+        fn set_paused(ref self: ContractState, paused: bool) {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            assert_is_admin(@world, caller);
+
+            let mut config: ProtocolConfig = world.read_model(PROTOCOL_CONFIG_ID);
+            config.paused = paused;
+            world.write_model(@config);
+
+            world.emit_event(@protocol_paused { admin: caller, paused });
+        }
+
+        // -------------------------------------------------------------------
+        // propose_admin
+        // -------------------------------------------------------------------
+        fn propose_admin(ref self: ContractState, new_admin: ContractAddress) {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            assert_is_admin(@world, caller);
+            assert!(new_admin != zero_address(), "Invalid admin");
+
+            world.write_model(@AdminTransfer { id: ADMIN_TRANSFER_ID, pending_admin: new_admin });
+            world.emit_event(@admin_transfer_proposed { new_admin, proposed_by: caller });
+        }
+
+        // -------------------------------------------------------------------
+        // accept_admin
+        // -------------------------------------------------------------------
+        fn accept_admin(ref self: ContractState) {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+
+            let mut transfer: AdminTransfer = world.read_model(ADMIN_TRANSFER_ID);
+            assert!(transfer.pending_admin != zero_address(), "No pending admin");
+            assert!(caller == transfer.pending_admin, "Not pending admin");
+
+            let mut config: ProtocolConfig = world.read_model(PROTOCOL_CONFIG_ID);
+            let old_admin = config.admin;
+            config.admin = caller;
+            world.write_model(@config);
+
+            transfer.pending_admin = zero_address();
+            world.write_model(@transfer);
+
+            world.emit_event(@admin_transfer_accepted { old_admin, new_admin: caller });
         }
 
         // -------------------------------------------------------------------
@@ -737,6 +1045,10 @@ pub mod Escrow {
             let world = self.world_default();
             let pool: BettingPool = world.read_model(pool_id);
 
+            if pool.settlement_mode != SETTLE_DIRECT {
+                return compute_implied_odds(pool.total_on_p1, pool.total_on_p2);
+            }
+
             let game_dispatcher = IGameWorldDispatcher { contract_address: pool.game_world };
             let (wins_p1, losses_p1, _exp_p1) = game_dispatcher.player_stats(pool.player_1);
             let (wins_p2, losses_p2, _exp_p2) = game_dispatcher.player_stats(pool.player_2);
@@ -774,6 +1086,7 @@ pub mod Escrow {
             // Verify denshokan is configured
             let denshokan_config: DenshokanConfig = world.read_model(DENSHOKAN_CONFIG_ID);
             assert!(denshokan_config.enabled, "Denshokan not configured");
+            assert!(denshokan_config.token_contract != zero_address(), "Invalid denshokan token");
 
             // Verify tokens are not already finished
             let token_data = IMinigameTokenDataDispatcher {
@@ -831,6 +1144,102 @@ pub mod Escrow {
 
             world.emit_event(@pool_created { pool_id, game_world, game_id, token, creator: caller, deadline });
             world.emit_event(@egs_pool_created { pool_id, game_world, game_id, egs_token_id_p1, egs_token_id_p2 });
+        }
+
+        // -------------------------------------------------------------------
+        // create_web2_pool
+        // -------------------------------------------------------------------
+        fn create_web2_pool(
+            ref self: ContractState,
+            match_id: felt252,
+            game_provider_id: felt252,
+            token: ContractAddress,
+            deadline: u64,
+            player_1: ContractAddress,
+            player_2: ContractAddress,
+            player_1_tag: felt252,
+            player_2_tag: felt252,
+        ) {
+            let mut world = self.world_default();
+            assert_not_paused(@world);
+            let caller = get_caller_address();
+            let now = get_block_timestamp();
+
+            assert_is_pool_manager(@world, caller);
+            assert!(token != zero_address(), "Invalid token");
+            assert!(deadline > now, "Deadline must be in the future");
+            assert!(player_1 != zero_address() && player_2 != zero_address(), "Invalid players");
+            assert!(player_1 != player_2, "Players must be different");
+            assert!(match_id != 0, "Invalid match_id");
+            assert!(player_1_tag != 0 && player_2_tag != 0, "Invalid player tags");
+            assert!(player_1_tag != player_2_tag, "Player tags must be different");
+            assert!(game_provider_id == RIOT_LOL_PROVIDER_ID, "Unsupported provider");
+
+            // Allocate pool ID
+            let mut counter: PoolCounter = world.read_model(POOL_COUNTER_ID);
+            let pool_id = counter.count + 1_u32;
+            counter.count = pool_id;
+
+            let pool = BettingPool {
+                pool_id,
+                game_world: zero_address(),
+                game_id: 0_u32,
+                token,
+                status: POOL_OPEN,
+                settlement_mode: SETTLE_WEB2_ZKTLS,
+                egs_token_id_p1: 0,
+                egs_token_id_p2: 0,
+                total_pot: 0_u128,
+                total_on_p1: 0_u128,
+                total_on_p2: 0_u128,
+                bettor_count_p1: 0_u32,
+                bettor_count_p2: 0_u32,
+                winning_player: zero_address(),
+                winning_total: 0_u128,
+                distributable_amount: 0_u128,
+                claimed_amount: 0_u128,
+                claimed_winner_count: 0_u32,
+                protocol_fee_amount: 0_u128,
+                creator: caller,
+                deadline,
+                player_1,
+                player_2,
+                budokan_address: zero_address(),
+                tournament_id: 0_u64,
+                entry_id_p1: 0_u64,
+                entry_id_p2: 0_u64,
+            };
+
+            let web2_pool = Web2BettingPool {
+                pool_id,
+                match_id,
+                game_provider_id,
+                player_1_tag,
+                player_2_tag,
+                proof_nullifier_used: false,
+            };
+
+            world.write_model(@counter);
+            world.write_model(@pool);
+            world.write_model(@web2_pool);
+            world.write_model(
+                @OddsSnapshot {
+                    pool_id, implied_prob_p1: 0_u128, implied_prob_p2: 0_u128, last_updated: now,
+                },
+            );
+
+            world.emit_event(
+                @pool_created { pool_id, game_world: zero_address(), game_id: 0_u32, token, creator: caller, deadline },
+            );
+            world.emit_event(
+                @web2_pool_created {
+                    pool_id,
+                    match_id,
+                    game_provider_id,
+                    player_1_tag,
+                    player_2_tag,
+                },
+            );
         }
 
         // -------------------------------------------------------------------
@@ -900,7 +1309,6 @@ pub mod Escrow {
             let now = get_block_timestamp();
 
             assert_is_pool_manager(@world, caller);
-            assert!(budokan_address != zero_address(), "Invalid budokan address");
             assert!(token != zero_address(), "Invalid token");
             assert!(deadline > now, "Deadline must be in the future");
             assert!(entry_id_p1 != entry_id_p2, "Entry IDs must be different");
@@ -908,12 +1316,21 @@ pub mod Escrow {
             let budokan_config: BudokanConfig = world.read_model(BUDOKAN_CONFIG_ID);
             assert!(budokan_config.enabled, "Budokan not configured");
 
-            let budokan = IBudokanDispatcher { contract_address: budokan_address };
+            let resolved_budokan = if budokan_address == zero_address() {
+                budokan_config.default_address
+            } else {
+                budokan_address
+            };
+            assert!(resolved_budokan != zero_address(), "Invalid budokan address");
+
+            let budokan = IBudokanDispatcher { contract_address: resolved_budokan };
             let phase = budokan.current_phase(tournament_id);
             // 0=Scheduled, 1=Registration, 2=Staging
             assert!(phase < 3_u8, "Tournament already started or finished");
 
             let denshokan_config: DenshokanConfig = world.read_model(DENSHOKAN_CONFIG_ID);
+            assert!(denshokan_config.enabled, "Denshokan not configured");
+            assert!(denshokan_config.token_contract != zero_address(), "Invalid denshokan token");
             let erc721 = IERC721Dispatcher { contract_address: denshokan_config.token_contract };
             let player_1 = erc721.owner_of(entry_id_p1.into());
             let player_2 = erc721.owner_of(entry_id_p2.into());
@@ -948,7 +1365,7 @@ pub mod Escrow {
                 deadline,
                 player_1,
                 player_2,
-                budokan_address,
+                budokan_address: resolved_budokan,
                 tournament_id,
                 entry_id_p1,
                 entry_id_p2,
@@ -988,6 +1405,29 @@ pub mod Escrow {
 
             world.emit_event(@budokan_configured { default_address, enabled });
         }
+
+        // -------------------------------------------------------------------
+        // configure_web2_oracle
+        // -------------------------------------------------------------------
+        fn configure_web2_oracle(
+            ref self: ContractState,
+            verifier_address: ContractAddress,
+            enabled: bool,
+        ) {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            assert_is_admin(@world, caller);
+
+            world.write_model(
+                @Web2OracleConfig {
+                    id: WEB2_ORACLE_CONFIG_ID,
+                    verifier_address,
+                    enabled,
+                },
+            );
+
+            world.emit_event(@web2_oracle_configured { verifier_address, enabled });
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1025,6 +1465,68 @@ pub mod Escrow {
         }
         let manager: PoolManager = world.read_model(caller);
         assert!(manager.enabled, "Not pool manager");
+    }
+
+    fn bytearray_match(haystack: @ByteArray, needle: @ByteArray, offset: usize) -> bool {
+        let needle_len = needle.len();
+        let hay_len = haystack.len();
+        if offset + needle_len > hay_len {
+            return false;
+        }
+
+        let mut i: usize = 0;
+        loop {
+            if i >= needle_len {
+                break;
+            }
+            let a = haystack.at(offset + i).unwrap();
+            let b = needle.at(i).unwrap();
+            if a != b {
+                return false;
+            }
+            i += 1;
+        };
+        true
+    }
+
+    fn extract_param_value(params: @ByteArray, key: @ByteArray) -> Option<felt252> {
+        let params_len = params.len();
+        let key_len = key.len();
+        if key_len == 0 {
+            return Option::None;
+        }
+
+        let mut i: usize = 0;
+        loop {
+            if i + key_len + 1 > params_len {
+                break;
+            }
+            if bytearray_match(params, key, i) {
+                let eq_index = i + key_len;
+                let eq = params.at(eq_index).unwrap();
+                if eq == 61_u8 {
+                    let mut j: usize = eq_index + 1;
+                    let mut value: felt252 = 0;
+                    let mut value_len: usize = 0;
+                    loop {
+                        if j >= params_len {
+                            break;
+                        }
+                        let ch = params.at(j).unwrap();
+                        if ch == 124_u8 {
+                            break;
+                        }
+                        value = value * 256 + ch.into();
+                        value_len += 1;
+                        assert!(value_len <= 31, "Param too long");
+                        j += 1;
+                    };
+                    return Option::Some(value);
+                }
+            }
+            i += 1;
+        };
+        Option::None
     }
 
     fn pull_token(from: ContractAddress, token: ContractAddress, amount: u128) {

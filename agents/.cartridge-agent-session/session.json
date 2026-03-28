@@ -1,16 +1,16 @@
 {
   "signer": {
-    "privKey": "0x3639dcf0c8a12ce499264818c5e3a309b73893db2a8d2cf5f2784f4e773b881",
-    "pubKey": "0xc8df36f23e931f5a8f30f20fb22d4f7df6a9d9a4cba23415e13f25806f3118"
+    "privKey": "0x3cad3fd0f5f853796ba85c936963785df89615f13c856f88ec93db2146b2b03",
+    "pubKey": "0x3ac3f0f5f71656f9260c54b4d0a47c927818730e9240fb639112852727dfdc0"
   },
   "session": {
     "username": "maxino",
     "address": "0x144ff18f9ccae07d63702ecd5cbb1fe457d63528dceac3cac1072490903d15b",
     "ownerGuid": "0x034e09c6e014acb5ed3067887a215aec32cd99ce52536a40e1278c4cb915c732",
-    "transactionHash": "0x3f6caddf9fa9b83b1b1bbc23143958c815922fee2d261ffdba9df2efb627812",
-    "expiresAt": "1774518138",
+    "transactionHash": "0x193c39974bc4efe047273ca70c1c4b980b6682984e6492fa78c10cde9f0a1a4",
+    "expiresAt": "1775220940",
     "guardianKeyGuid": "0x0",
     "metadataHash": "0x0",
-    "sessionKeyGuid": "0x0086cbe1c68fa9abe577bf4e910f12e3a309269bed1888cc55c96edad6aeca93"
+    "sessionKeyGuid": "0x0063114c08ce564e63a69382743b8303d571e59f48f3a142bd9eaf63d0c6b1b9"
   }
 }
