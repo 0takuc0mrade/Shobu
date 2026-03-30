@@ -44,7 +44,29 @@ export async function POST(req: NextRequest) {
       input: { poolId: Number(poolId), message },
     })
 
-    return NextResponse.json({ success: true, result })
+    // Extract the raw text from OpenServ's nested webhook response
+    let extractedText = null
+    try {
+      if (result && typeof result === 'object') {
+        const firstResult = (result as any).results?.[0]
+        const output = firstResult?.workspaceExecution?.output
+        
+        if (output && typeof output.value === 'string') {
+          extractedText = output.value
+        } else if (typeof output === 'string') {
+          extractedText = output
+        } else if (typeof firstResult?.response === 'string') {
+          extractedText = firstResult.response
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse OpenServ object natively, falling back to raw', e)
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      result: extractedText || result 
+    })
   } catch (err: any) {
     console.error('[api/agents/analyst] Error:', err?.message ?? err)
     return NextResponse.json(
