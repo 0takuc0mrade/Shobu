@@ -22,22 +22,30 @@ function BettingPanelContent() {
   const totalP1 = Number(pool?.total_on_p1 ?? 0) / 1e18;
   const totalP2 = Number(pool?.total_on_p2 ?? 0) / 1e18;
 
+  const currentP1 = totalPot > 0 && totalP1 > 0 ? totalPot / totalP1 : 2.0;
+  const currentP2 = totalPot > 0 && totalP2 > 0 ? totalPot / totalP2 : 2.0;
+
+  const currentOddsDisplay = {
+    playerA: odds.p1 || currentP1,
+    playerB: odds.p2 || currentP2,
+  };
+
   const parsedBet = parseFloat(betAmount) || 0;
   const simTotalP1 = totalP1 + (selectedPlayer === 'playerA' ? parsedBet : 0);
   const simTotalP2 = totalP2 + (selectedPlayer === 'playerB' ? parsedBet : 0);
-  const simPot = totalPot + parsedBet;
+  const simPot = totalPot + (selectedPlayer !== null ? parsedBet : 0);
 
-  let fallbackP1 = 2.0;
-  let fallbackP2 = 2.0;
+  let simOddsP1 = currentP1;
+  let simOddsP2 = currentP2;
   
   if (simPot > 0) {
-    fallbackP1 = simTotalP1 > 0 ? simPot / simTotalP1 : simPot;
-    fallbackP2 = simTotalP2 > 0 ? simPot / simTotalP2 : simPot;
+    simOddsP1 = simTotalP1 > 0 ? simPot / simTotalP1 : simPot;
+    simOddsP2 = simTotalP2 > 0 ? simPot / simTotalP2 : simPot;
   }
 
-  const displayOdds = {
-    playerA: (odds.p1 && parsedBet === 0) ? odds.p1 : fallbackP1,
-    playerB: (odds.p2 && parsedBet === 0) ? odds.p2 : fallbackP2,
+  const simulatedOdds = {
+    playerA: simOddsP1,
+    playerB: simOddsP2,
   };
 
   const safeDecode = (value: string | undefined, fallback: string) => {
@@ -84,7 +92,7 @@ function BettingPanelContent() {
               </div>
               <div className="text-right">
                 <p className="text-xl sm:text-2xl font-bold text-neon-purple">
-                  {displayOdds.playerA.toFixed(2)}x
+                  {currentOddsDisplay.playerA.toFixed(2)}x
                 </p>
               </div>
             </div>
@@ -108,7 +116,7 @@ function BettingPanelContent() {
               </div>
               <div className="text-right">
                 <p className="text-xl sm:text-2xl font-bold text-neon-blue">
-                  {displayOdds.playerB.toFixed(2)}x
+                  {currentOddsDisplay.playerB.toFixed(2)}x
                 </p>
               </div>
             </div>
@@ -143,7 +151,7 @@ function BettingPanelContent() {
       <div className="flex-1">
         <BetSlip 
           selectedPlayer={selectedPlayer}
-          odds={selectedPlayer === 'playerA' ? displayOdds.playerA : selectedPlayer === 'playerB' ? displayOdds.playerB : 0}
+          odds={selectedPlayer === 'playerA' ? simulatedOdds.playerA : selectedPlayer === 'playerB' ? simulatedOdds.playerB : 0}
           poolId={poolId}
           betAmount={betAmount}
           setBetAmount={setBetAmount}

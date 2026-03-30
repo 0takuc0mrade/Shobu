@@ -41,6 +41,15 @@ export type Web2BettingPoolModel = {
   proof_nullifier_used?: boolean;
 };
 
+export type BetModel = {
+  pool_id?: string;
+  bettor?: string;
+  predicted_winner?: string;
+  amount?: string;
+  claimed?: boolean;
+  placed_at?: string;
+};
+
 export type OddsSnapshotModel = {
   pool_id?: string;
   implied_prob_p1?: string;
@@ -92,11 +101,16 @@ const WEB2_POOL_FIELDS = `
   pool_id match_id game_provider_id player_1_tag player_2_tag proof_nullifier_used
 `;
 
+const BET_FIELDS = `
+  pool_id bettor predicted_winner amount claimed placed_at
+`;
+
 // -----------------------------------------------------------------------
 // Hooks
 // -----------------------------------------------------------------------
 export function useAllBettingPools() {
   const [pools, setPools] = useState<BettingPoolModel[]>([]);
+  const [web2Pools, setWeb2Pools] = useState<Web2BettingPoolModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
 
@@ -111,11 +125,16 @@ export function useAllBettingPools() {
             shobuBettingPoolModels(limit: 1000) {
               edges { node { ${POOL_FIELDS} } }
             }
+            shobuWeb2BettingPoolModels(limit: 1000) {
+              edges { node { ${WEB2_POOL_FIELDS} } }
+            }
           }
         `);
         const fetched = extractEdges<BettingPoolModel>(data, "shobuBettingPoolModels");
+        const fetchedWeb2 = extractEdges<Web2BettingPoolModel>(data, "shobuWeb2BettingPoolModels");
         if (active) {
           setPools(fetched);
+          setWeb2Pools(fetchedWeb2);
           setLoading(false);
           setError(undefined);
         }
@@ -135,7 +154,57 @@ export function useAllBettingPools() {
     };
   }, []);
 
-  return { pools, loading, error };
+  return { pools, web2Pools, loading, error };
+}
+
+export function useUserBets(bettorAddress: string | undefined) {
+  const [bets, setBets] = useState<BetModel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    if (!bettorAddress) {
+      setBets([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    async function fetchBets() {
+      try {
+        const queryAddress = (bettorAddress as string).toLowerCase();
+        // Torii might pad or un-pad zeros, but typically lowercasing works for equal match
+        const data = await graphqlQuery(`
+          query {
+            shobuBetModels(where: { bettor: "${queryAddress}" }, limit: 1000) {
+              edges { node { ${BET_FIELDS} } }
+            }
+          }
+        `);
+        const fetched = extractEdges<BetModel>(data, "shobuBetModels");
+        if (active) {
+          setBets(fetched);
+          setLoading(false);
+          setError(undefined);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Failed to fetch bets");
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchBets();
+    const interval = setInterval(fetchBets, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [bettorAddress]);
+
+  return { bets, loading, error };
 }
 
 export function useBettingPool(poolId: number) {

@@ -155,6 +155,47 @@ Answer the user directly and concisely. If they ask about a specific pool you do
   },
 })
 
+// --- Capability: chat_trollbox ---
+agent.addCapability({
+  name: 'chat_trollbox',
+  description:
+    'Answer a user message in the Trollbox chat for a specific betting pool. Provides pool-aware AI commentary with real-time on-chain data.',
+  inputSchema: z.object({
+    poolId: z.number().int().describe('Pool ID the user is chatting about'),
+    message: z.string().describe('The user\'s chat message'),
+  }),
+  async run({ args, action }) {
+    const pool = await fetchPoolById(args.poolId)
+    const odds = pool ? await fetchOddsSnapshot(args.poolId) : null
+    const bets = pool ? await fetchBetsForPool(args.poolId) : []
+
+    const poolContext = pool
+      ? formatPool(pool, odds)
+      : `Pool #${args.poolId} not found.`
+
+    const betSummary = bets.length > 0
+      ? bets.slice(0, 10).map(b => `  ${b.bettor.slice(0, 10)}... → ${b.predicted_winner === pool?.player_1 ? 'P1' : 'P2'} (${BigInt(b.amount || 0)})`).join('\n')
+      : '  No bets yet.'
+
+    const answer = await this.generate({
+      prompt: `You are the Shobu Trollbox AI — a witty, knowledgeable betting analyst chatting with users watching a live match. Be concise, engaging, and data-driven. Use emoji sparingly.
+
+Pool Data:
+${poolContext}
+
+Recent Bets:
+${betSummary}
+
+User says: "${args.message}"
+
+Respond naturally as a chat message (1-3 sentences max). If they ask about odds, reference the real data above.`,
+      action,
+    })
+
+    return answer;
+  },
+})
+
 // --- Capability: market_overview ---
 agent.addCapability({
   name: 'market_overview',
@@ -202,6 +243,47 @@ Cover:
     })
 
     return `## Shobu Market Overview\n\n${overview}\n\n### Raw Data\n${marketData}`
+  },
+})
+
+// --- Capability: resolve_match_name ---
+agent.addCapability({
+  name: 'resolve_match_name',
+  description:
+    'Resolve raw game IDs into human-readable match names by inspecting on-chain data and contextual cues.',
+  inputSchema: z.object({
+    pool_id: z.string().describe('The pool ID (stringified)'),
+    raw_game_id: z.string().describe('The raw game ID, challenge ID, or UUID'),
+    type: z.string().describe('The game type or settlement mode (e.g. Web2, Pistols, Budokan)')
+  }),
+  async run({ args, action }) {
+    let poolContext = "";
+    if (args.pool_id && args.pool_id !== 'unknown') {
+       const pool = await fetchPoolById(Number(args.pool_id)).catch(() => null);
+       if (pool) poolContext = formatPool(pool);
+    }
+
+    const answer = await this.generate({
+      prompt: `You are the Shobu Protocol Match Resolver.
+Your job is to take raw cryptographic IDs and match data and return ONLY a clean, human-readable match title string.
+Do not include any quotation marks, markdown, or chatty text.
+
+Inputs:
+Pool ID: ${args.pool_id}
+Raw Game/Match ID: ${args.raw_game_id}
+Match Type/Mode: ${args.type}
+Pool Context (if any):
+${poolContext}
+
+If the Type is Web2/Riot, deduce a team matchup format (e.g., "T1 vs Gen.G" or "Pro League Match").
+If the Type is Pistols/Dojo, deduplicate the addresses and format as "Pistols Duel: 0x... vs 0x...".
+If unknown, return a sensible shortened format for the game.
+
+Output ONLY the final match title string.`,
+      action,
+    })
+
+    return answer.replace(/["\n]/g, '').trim();
   },
 })
 
@@ -355,7 +437,25 @@ async function main() {
     return
   }
 
-  console.log(`[analyst] 🚀 Running in local autonomous mode (interval: ${ANALYST_INTERVAL_MS / 1000}s)`)
+  console.log(`[analyst] 🚀 Running in hybrid mode (local loop: ${ANALYST_INTERVAL_MS / 1000}s + OpenServ tunnel)`)
+
+  // Provision is idempotent — binds credentials to the agent instance
+  // and ensures the trigger is set to webhook (not cron, which caused crash loops)
+  console.log('[analyst] 🔧 Provisioning agent on OpenServ platform...')
+  await provision({
+    userApiKey: process.env.OPENSERV_USER_API_KEY!,
+    agent: {
+      instance: agent,
+      name: 'shobu-analyst',
+      description: 'Provides odds analysis, pool insights, Trollbox chat, and market overviews for the Shobu betting protocol.',
+    },
+    workflow: {
+      name: 'Shobu Market Analyst',
+      goal: 'Analyze betting pool odds, generate market insights, power the Trollbox chat, and post AI-generated analyses. Accepts webhook requests from the Shobu frontend.',
+      trigger: triggers.webhook({ waitForCompletion: true, timeout: 600 }),
+      task: { description: 'Analyze markets, provide odds insights, or chat with users about betting pools' },
+    },
+  })
 
   // Run first cycle immediately
   await runAnalystCycle()
@@ -366,6 +466,10 @@ async function main() {
       console.error('[analyst] interval error:', err?.message ?? err)
     )
   }, ANALYST_INTERVAL_MS)
+
+  // Start the OpenServ tunnel so webhook triggers from the frontend work
+  console.log('[analyst] 🔗 Starting OpenServ agent tunnel...')
+  await run(agent)
 }
 
 main().catch((err) => {

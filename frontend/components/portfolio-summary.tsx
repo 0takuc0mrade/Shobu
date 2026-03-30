@@ -13,11 +13,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useUserBets, useAllBettingPools } from '@/hooks/use-dojo-betting';
+import { useStarkSdk } from '@/providers/stark-sdk-provider';
+import { formatUnits } from '@/lib/token-utils';
+import { sameAddress } from '@/lib/address-utils';
 
 export function PortfolioSummary() {
-  const totalWagered = 12500.50;
-  const totalWon = 18750.25;
-  const claimableWinnings = 3250.75;
+  const { wallet } = useStarkSdk();
+  const address = wallet?.account?.address;
+  const { bets } = useUserBets(address);
+  const { pools } = useAllBettingPools();
+
+  let totalWagered = 0;
+  let totalWon = 0;
+  let claimableWinnings = 0;
+
+  const poolMap = new Map(pools.map(p => [Number(p.pool_id), p]));
+
+  bets.forEach((bet) => {
+    const amount = Number(formatUnits(BigInt(bet.amount || '0'), web3Config.tokens.strk.decimals));
+    totalWagered += amount;
+
+    const pool = poolMap.get(Number(bet.pool_id));
+    if (pool && Number(pool.status) === 1) { // 1 = settled
+      if (sameAddress(bet.predicted_winner, pool.winning_player)) {
+        const isP1 = sameAddress(pool.winning_player, pool.player_1);
+        const totalOnWinner = isP1 ? BigInt(pool.total_on_p1 || '1') : BigInt(pool.total_on_p2 || '1');
+        const betAmt = BigInt(bet.amount || '0');
+        const distAmt = BigInt(pool.distributable_amount || '0');
+        
+        if (totalOnWinner > 0n) {
+          const payoutWei = (betAmt * distAmt) / totalOnWinner;
+          const payout = Number(formatUnits(payoutWei, web3Config.tokens.strk.decimals));
+          totalWon += payout;
+          if (!bet.claimed) {
+            claimableWinnings += payout;
+          }
+        }
+      }
+    }
+  });
+
   const { claim, status: claimStatus, error: claimError } = useClaimWinnings();
   const [payoutToken, setPayoutToken] = useState(web3Config.tokens.strk.address);
   // Track if a swap attempt failed to show the fallback button

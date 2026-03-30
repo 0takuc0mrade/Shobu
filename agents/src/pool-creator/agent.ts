@@ -603,6 +603,118 @@ agent.addCapability({
   },
 })
 
+// --- Capability: create_from_prompt ---
+agent.addCapability({
+  name: 'create_from_prompt',
+  description:
+    'Process user requests to create betting markets. For Riot games, extract gameName and tagLine. For Pistols, mark as pistols. For everything else (e.g. BTC prices, random bets), mark as unsupported.',
+  inputSchema: z.object({
+    marketType: z.enum(['riot', 'pistols', 'unsupported']).describe('The categorization of the user request'),
+    gameName: z.string().optional().describe('A SINGLE Riot gameName or Player name to scan. If the user provides multiple names (e.g. "Faker vs Showmaker"), extract ONLY ONE of them (e.g. "Faker"). Do not include "vs" or multiple names.'),
+    tagLine: z.string().optional().describe('The Riot tagLine (e.g. NA1) if present, default to NA1'),
+    starknetBettor: z.string().describe('Starknet address of the requester')
+  }),
+  async run({ args }) {
+    if (args.marketType === 'unsupported') {
+      return "I can currently only create on-chain betting pools for supported game integrations like Riot (League of Legends) and Dojo games (Pistols at 10 Blocks). Custom or off-chain markets are not currently supported by the Shōbu Escrow.";
+    }
+
+    if (args.marketType === 'riot' && args.gameName) {
+      const gameName = args.gameName;
+      const tagLine = args.tagLine || 'NA1';
+
+      // Special demo mode to allow frontend testing without relying on the unstable Riot API
+      if (gameName.toLowerCase() === 'demoplayer') {
+        try {
+          const config = getConfig();
+          const token = normalizeAddress(config.POOL_TOKEN);
+          const deadline = Math.floor(Date.now() / 1000) + 1800;
+          const addr1 = normalizeAddress(args.starknetBettor || config.CARTRIDGE_ADDRESS);
+          const addr2 = addr1.slice(0, -1) + (addr1.endsWith('e') ? 'f' : 'e');
+
+          const calldata = [
+            encodeShortString('NA1_999999999', 'match_id'),
+            encodeShortString('RIOT_LOL', 'game_provider_id'),
+            token,
+            deadline.toString(),
+            addr1,
+            addr2,
+            encodeShortString('DemoPlayer#NA1', 'player_1_tag'),
+            encodeShortString('Rival#NA1', 'player_2_tag'),
+          ];
+
+          const txHash = await executeAndWait([{
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.createWeb2Pool,
+            calldata
+          }]);
+
+          return `Successfully deployed Web2 Pool for DemoPlayer vs Rival! Tx: ${txHash}`;
+        } catch (err: any) {
+          return `Demo pool creation failed: ${err?.message ?? err}`;
+        }
+      }
+
+      try {
+        const account = await getAccountByRiotId(gameName, tagLine);
+        if (!account) return `Could not find Riot account for ${gameName}#${tagLine}`;
+        
+        const liveGame = await getActiveGame(account.puuid);
+        if (!liveGame || !liveGame.participants || liveGame.participants.length < 2) {
+          return `${gameName}#${tagLine} is not currently in a live match, so I can't create a real-time pool right now.`;
+        }
+
+        const p1 = liveGame.participants[0]
+        const p2 = liveGame.participants.find((p: any) => p.puuid !== p1.puuid) || liveGame.participants[1]
+        
+        const extractTag = (puuid: string, fallbackId: string) => {
+           if (puuid === account.puuid) return `${gameName}#${tagLine}`;
+           return fallbackId || 'Unknown#NA1';
+        }
+
+        const p1Tag = extractTag(p1.puuid, p1.riotId)
+        const p2Tag = extractTag(p2.puuid, p2.riotId)
+        
+        const matchId = `NA1_${liveGame.gameId}`;
+        const deadline = Math.floor(Date.now() / 1000) + 1800;
+
+        const config = getConfig();
+        const token = normalizeAddress(config.POOL_TOKEN);
+
+        const addr1 = normalizeAddress(args.starknetBettor || config.CARTRIDGE_ADDRESS);
+        const addr2 = addr1.slice(0, -1) + (addr1.endsWith('e') ? 'f' : 'e');
+
+        const calldata = [
+          encodeShortString(matchId, 'match_id'),
+          encodeShortString('RIOT_LOL', 'game_provider_id'),
+          token,
+          deadline.toString(),
+          addr1,
+          addr2,
+          encodeShortString(p1Tag, 'player_1_tag'),
+          encodeShortString(p2Tag, 'player_2_tag'),
+        ]
+
+        const txHash = await executeAndWait([{
+          contractAddress: config.ESCROW_ADDRESS,
+          entrypoint: ENTRYPOINTS.createWeb2Pool,
+          calldata
+        }])
+
+        return `Successfully deployed Web2 Pool for ${gameName} vs ${p2Tag.split('#')[0]}! Tx: ${txHash}`;
+      } catch (err: any) {
+         return `Failed to process Riot match creation: ${err?.message ?? err}`;
+      }
+    }
+
+    if (args.marketType === 'pistols') {
+       return "For Pistols at 10 Blocks matches, the orchestrator automatically sweeps Torii and creates direct-mode pools. Keep an eye on the feed!";
+    }
+
+    return "Request understood but I couldn't map it to an active pool implementation.";
+  }
+})
+
 // --- Capability: scan_riot_match ---
 agent.addCapability({
   name: 'scan_riot_match',
@@ -998,7 +1110,25 @@ async function main() {
     return
   }
 
-  console.log(`[pool-creator] 🚀 Running in local autonomous mode (interval: ${SCAN_INTERVAL_MS / 1000}s)`)
+  console.log(`[pool-creator] 🚀 Running in hybrid mode (local loop: ${SCAN_INTERVAL_MS / 1000}s + OpenServ tunnel)`)
+
+  // Provision is idempotent — binds credentials to the agent instance
+  // and ensures the trigger is set to webhook (not cron, which caused crash loops)
+  console.log('[pool-creator] 🔧 Provisioning agent on OpenServ platform...')
+  await provision({
+    userApiKey: process.env.OPENSERV_USER_API_KEY!,
+    agent: {
+      instance: agent,
+      name: 'shobu-pool-creator',
+      description: 'Monitors game feeds and automatically creates betting pools on the Shobu escrow contract for new games.',
+    },
+    workflow: {
+      name: 'Shobu Pool Creator',
+      goal: 'Scan game feeds, Torii indexers, and Riot API for live matches, then autonomously create betting pools on Starknet. Also accepts user-requested market creation via webhook.',
+      trigger: triggers.webhook({ waitForCompletion: true, timeout: 600 }),
+      task: { description: 'Process incoming pool creation requests or run autonomous scanning cycle' },
+    },
+  })
 
   // Run first cycle immediately
   await runScanCycle()
@@ -1009,6 +1139,10 @@ async function main() {
       console.error('[pool-creator] interval error:', err?.message ?? err)
     )
   }, SCAN_INTERVAL_MS)
+
+  // Start the OpenServ tunnel so webhook triggers from the frontend work
+  console.log('[pool-creator] 🔗 Starting OpenServ agent tunnel...')
+  await run(agent)
 }
 
 main().catch((err) => {

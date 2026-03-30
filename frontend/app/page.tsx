@@ -6,6 +6,7 @@ import { TopNavBar } from '@/components/top-nav-bar'
 import { Sidebar } from '@/components/sidebar'
 import { HeroBanner } from '@/components/hero-banner'
 import { GameGrid } from '@/components/game-grid'
+import { UserRequestedMarket } from '@/components/UserRequestedMarket'
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -26,6 +27,11 @@ export default function Dashboard() {
             {/* Hero Banner */}
             <HeroBanner />
 
+            {/* Request a Market */}
+            <div className="fade-in-up" style={{ animationDelay: '0.1s' }}>
+              <UserRequestedMarket />
+            </div>
+
             {/* Active Games Section */}
             <div className="space-y-3 sm:space-y-4 fade-in-up" style={{ animationDelay: '0.2s' }}>
               <div className="flex items-center gap-2">
@@ -40,3 +46,4 @@ export default function Dashboard() {
     </div>
   )
 }
+

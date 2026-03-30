@@ -16,6 +16,7 @@
     "@dojoengine/sdk": "^1.5.17",
     "@dojoengine/torii-client": "^1.5.17",
     "@hookform/resolvers": "^3.9.1",
+    "@openserv-labs/client": "^2.5.3",
     "@radix-ui/react-accordion": "1.2.12",
     "@radix-ui/react-alert-dialog": "1.1.15",
     "@radix-ui/react-aspect-ratio": "1.1.8",
