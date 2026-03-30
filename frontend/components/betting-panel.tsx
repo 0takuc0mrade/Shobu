@@ -2,9 +2,10 @@
 
 import { useState, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Sparkles, BrainCircuit, ShieldCheck } from 'lucide-react';
+import { Sparkles, ShieldCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { BetSlip } from './bet-slip';
+import { AnalystInsightCard } from './analyst-insight-card';
 import { useBettingPool, usePoolOdds, useWeb2BettingPool } from '@/hooks/use-dojo-betting';
 import { web3Config } from '@/lib/web3-config';
 import { shortString } from 'starknet';
@@ -37,7 +38,7 @@ function BettingPanelContent() {
 
   let simOddsP1 = currentP1;
   let simOddsP2 = currentP2;
-  
+
   if (simPot > 0) {
     simOddsP1 = simTotalP1 > 0 ? simPot / simTotalP1 : simPot;
     simOddsP2 = simTotalP2 > 0 ? simPot / simTotalP2 : simPot;
@@ -130,26 +131,20 @@ function BettingPanelContent() {
       </Card>
 
       {/* AI Market Insight */}
-      <Card className="card-border glass-card relative overflow-hidden group shrink-0">
-        <div className="absolute inset-0 bg-gradient-to-r from-neon-purple/5 to-neon-blue/5 group-hover:from-neon-purple/10 group-hover:to-neon-blue/10 transition-colors duration-500" />
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2 text-foreground">
-            <BrainCircuit className="w-4 h-4 text-neon-purple" />
-            Shobu Analyst AI
-            <span className="w-1.5 h-1.5 rounded-full bg-neon-purple animate-pulse ml-auto" />
-          </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">Autonomous Market Insight</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-gray-300 leading-relaxed italic">
-            "Market liquidity is currently heavily weighted towards the Challenger. The current odds offer a +15% expected value premium on the Champion based on historical matchup data."
-          </p>
-        </CardContent>
-      </Card>
+      <AnalystInsightCard
+        poolId={poolId}
+        totalPot={totalPot}
+        totalP1={totalP1}
+        totalP2={totalP2}
+        oddsP1={currentOddsDisplay.playerA}
+        oddsP2={currentOddsDisplay.playerB}
+        p1Name={p1Name}
+        p2Name={p2Name}
+      />
 
       {/* Bet Slip */}
       <div className="flex-1">
-        <BetSlip 
+        <BetSlip
           selectedPlayer={selectedPlayer}
           odds={selectedPlayer === 'playerA' ? simulatedOdds.playerA : selectedPlayer === 'playerB' ? simulatedOdds.playerB : 0}
           poolId={poolId}
