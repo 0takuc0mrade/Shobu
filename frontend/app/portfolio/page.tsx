@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { TopNavBar } from '@/components/top-nav-bar';
 import { Sidebar } from '@/components/sidebar';
-import { PortfolioSummary } from '@/components/portfolio-summary';
 import { BettingHistoryTable } from '@/components/betting-history-table';
+import dynamic from 'next/dynamic';
+
+const PortfolioSummary = dynamic(() => import('@/components/portfolio-summary').then(mod => mod.PortfolioSummary), { ssr: false });
 
 export default function PortfolioPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);

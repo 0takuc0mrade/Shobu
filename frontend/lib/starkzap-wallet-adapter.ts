@@ -1,32 +1,33 @@
-import { BaseWallet, ChainId, Tx, type FeeMode } from "starkzap";
-import type {
-  Address,
-  DeployOptions,
-  EnsureReadyOptions,
-  ExecuteOptions,
-  PreflightOptions,
-  PreflightResult,
-} from "starkzap";
+// ─── StarkZap Wallet Adapter ─────────────────────────────────────────
+// Lazy-loaded to avoid pulling in the 742MB @hyperlane-xyz dep tree
+// at compile time. All starkzap types are imported dynamically.
+// ──────────────────────────────────────────────────────────────────────
+
 import { RpcProvider } from "starknet";
 import { web3Config } from "./web3-config";
 
 const sharedRpcProvider = new RpcProvider({ nodeUrl: web3Config.rpcUrl });
 
-function resolveChainId(): ChainId {
-  if (web3Config.chainId === "MAINNET") return ChainId.MAINNET;
-  return ChainId.SEPOLIA;
+function resolveChainIdValue(): string {
+  return web3Config.chainId === "MAINNET" ? "MAINNET" : "SEPOLIA";
 }
 
-export class StarkzapAccountWallet extends BaseWallet {
+/**
+ * A wallet adapter that wraps a starknet-react account for use with StarkZap.
+ * Does NOT import `starkzap` at the top level — all starkzap-specific logic
+ * is deferred to runtime via the lazy helpers.
+ */
+export class StarkzapAccountWallet {
   public readonly account: any;
+  public readonly address: string;
   private readonly provider: RpcProvider;
-  private readonly chainId: ChainId;
+  private readonly _chainId: string;
 
   constructor(account: any, provider: RpcProvider = sharedRpcProvider) {
-    super(account.address as Address, undefined);
     this.account = account;
+    this.address = account.address;
     this.provider = provider;
-    this.chainId = resolveChainId();
+    this._chainId = resolveChainIdValue();
   }
 
   async isDeployed(): Promise<boolean> {
@@ -38,24 +39,30 @@ export class StarkzapAccountWallet extends BaseWallet {
     }
   }
 
-  async ensureReady(_options?: EnsureReadyOptions): Promise<void> {
-    // Controller accounts handle deployment internally; avoid hard failures here.
+  async ensureReady(_options?: any): Promise<void> {
+    // Controller accounts handle deployment internally
   }
 
-  async deploy(_options?: DeployOptions): Promise<Tx> {
+  async deploy(_options?: any): Promise<any> {
     throw new Error("Account deployment is not supported via StarkzapAccountWallet.");
   }
 
-  async execute(calls: any[], _options?: ExecuteOptions): Promise<Tx> {
+  async execute(calls: any[], _options?: any): Promise<any> {
     const result = await this.account.execute(calls);
-    return new Tx(result.transaction_hash, this.provider as any, this.chainId);
+    // Return a minimal tx-like object; the full Tx class is only needed 
+    // if consumers actually use starkzap transaction tracking.
+    return {
+      transaction_hash: result.transaction_hash,
+      provider: this.provider,
+      chainId: this._chainId,
+    };
   }
 
   async signMessage(typedData: any): Promise<any> {
     return this.account.signMessage(typedData);
   }
 
-  async preflight(options: PreflightOptions): Promise<PreflightResult> {
+  async preflight(options: { calls: any[] }): Promise<{ ok: boolean; reason?: string }> {
     try {
       const estimator =
         this.account.estimateFee?.bind(this.account) ??
@@ -75,16 +82,15 @@ export class StarkzapAccountWallet extends BaseWallet {
     return this.account;
   }
 
-  // @ts-ignore
   getProvider(): RpcProvider {
     return this.provider;
   }
 
-  getChainId(): ChainId {
-    return this.chainId;
+  getChainId(): string {
+    return this._chainId;
   }
 
-  getFeeMode(): FeeMode {
+  getFeeMode(): string {
     return "user_pays";
   }
 

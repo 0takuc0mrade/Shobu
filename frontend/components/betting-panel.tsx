@@ -4,8 +4,10 @@ import { useState, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Sparkles, ShieldCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { BetSlip } from './bet-slip';
 import { AnalystInsightCard } from './analyst-insight-card';
+import dynamic from 'next/dynamic';
+
+const BetSlip = dynamic(() => import('./bet-slip').then(mod => mod.BetSlip), { ssr: false });
 import { useBettingPool, usePoolOdds, useWeb2BettingPool } from '@/hooks/use-dojo-betting';
 import { web3Config } from '@/lib/web3-config';
 import { shortString } from 'starknet';

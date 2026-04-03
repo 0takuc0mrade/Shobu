@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { web3Config } from "@/lib/web3-config";
 import { EgsGame } from "@/lib/egs-types";
 import { normalizeAddress } from "@/lib/address-utils";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 const DEFAULT_POLL_MS = 15000;
 
@@ -147,7 +148,7 @@ export function useEgsDiscovery() {
       setLoading(true);
       setError(undefined);
       try {
-        const response = await fetch(apiUrl);
+        const response = await fetchWithTimeout(apiUrl);
         if (!response.ok) {
           throw new Error(`Denshokan API failed: ${response.status}`);
         }
@@ -162,7 +163,11 @@ export function useEgsDiscovery() {
         }
       } catch (err) {
         if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to fetch Denshokan games");
+        if (err instanceof Error && err.name === "AbortError") {
+          setError("Denshokan request timed out");
+        } else {
+          setError(err instanceof Error ? err.message : "Failed to fetch Denshokan games");
+        }
       } finally {
         if (active) setLoading(false);
       }

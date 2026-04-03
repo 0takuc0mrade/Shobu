@@ -69,7 +69,8 @@ export function PortfolioSummary() {
         poolId: web3Config.activePoolId,
         amount: claimableWinnings.toString(),
         poolTokenAddress: web3Config.tokens.strk.address,
-        payoutTokenAddress: targetToken
+        payoutTokenAddress: targetToken,
+        chainType: 'starknet',
       });
       // The hook doesn't throw on error, it sets claimStatus to 'error' and updates claimError
     } catch {

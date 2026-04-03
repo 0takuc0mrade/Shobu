@@ -1,11 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { StarknetConfig, jsonRpcProvider } from "@starknet-react/core";
 import { mainnet, sepolia } from "@starknet-react/chains";
 import { web3Config } from "@/lib/web3-config";
 import { StarkSdkProvider, controllerConnector } from "@/providers/stark-sdk-provider";
 import { EgsProvider } from "@/providers/egs-provider";
 import { BudokanProvider } from "@/providers/budokan-provider";
+
+// Lazy-load the Privy provider so its 1GB+ dependency tree
+// (@privy-io, @wagmi, @reown) is code-split and doesn't block initial compile.
+const PrivyAuthProvider = dynamic(
+  () => import("@/providers/privy-provider").then((mod) => mod.PrivyAuthProvider),
+  { ssr: false }
+);
 
 const provider = jsonRpcProvider({
   rpc: () => ({ nodeUrl: web3Config.rpcUrl }),
@@ -15,18 +23,21 @@ const defaultChainId = web3Config.chainId === "MAINNET" ? mainnet.id : sepolia.i
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <StarknetConfig
-      chains={[mainnet, sepolia]}
-      defaultChainId={defaultChainId}
-      provider={provider}
-      connectors={[controllerConnector]}
-      autoConnect
-    >
-      <StarkSdkProvider>
-          <EgsProvider>
-            <BudokanProvider>{children}</BudokanProvider>
-          </EgsProvider>
-      </StarkSdkProvider>
-    </StarknetConfig>
+    <PrivyAuthProvider>
+      <StarknetConfig
+        chains={[mainnet, sepolia]}
+        defaultChainId={defaultChainId}
+        provider={provider}
+        connectors={[controllerConnector]}
+        autoConnect
+      >
+        <StarkSdkProvider>
+            <EgsProvider>
+              <BudokanProvider>{children}</BudokanProvider>
+            </EgsProvider>
+        </StarkSdkProvider>
+      </StarknetConfig>
+    </PrivyAuthProvider>
   );
 }
+

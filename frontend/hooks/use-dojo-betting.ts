@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { web3Config } from "@/lib/web3-config";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 // -----------------------------------------------------------------------
 // Data Models
@@ -72,7 +73,7 @@ async function graphqlQuery<T = any>(
   toriiUrl: string = web3Config.toriiUrl
 ): Promise<T> {
   const graphqlUrl = toriiUrl.replace(/\/graphql\/?$/, "") + "/graphql";
-  const res = await fetch(graphqlUrl, {
+  const res = await fetchWithTimeout(graphqlUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),

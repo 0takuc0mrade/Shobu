@@ -1,0 +1,30 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  Escrow deployed to: 0xa7C48fA122879C8EBC0e3e80f60995AEB7Fe19e7
+  Pool Manager: 0xc2F8f2DE22aa92e2c0693a84a2c081b2Fd77C60E
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 13337
+
+Estimated gas price: 2000.000000001 gwei
+
+Estimated total gas used for script: 3274944
+
+Estimated amount required: 6.549888000003274944 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /home/peter/shobu/src/beam/broadcast/Deploy.s.sol/13337/run-latest.json
+
+Sensitive values saved to: /home/peter/shobu/src/beam/cache/Deploy.s.sol/13337/run-latest.json
+

@@ -44,6 +44,7 @@ const envSchema = z.object({
   BUDOKAN_TORII_URL: z.string().url().default('http://localhost:8080'),
   BUDOKAN_ADDRESS: z.string().default('0x0'),
   ESCROW_ADDRESS: z.string().min(1, 'ESCROW_ADDRESS is required'),
+  BEAM_ESCROW_ADDRESS: z.string().optional(),
 
   // Pistols at 10 Blocks (FOCG)
   PISTOLS_TORII_URL: z

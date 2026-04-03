@@ -1,26 +1,20 @@
 'use client'
 
-import { Menu, Loader2 } from 'lucide-react'
-import { useStarkSdk } from '@/providers/stark-sdk-provider'
+import { Menu } from 'lucide-react'
+import dynamic from 'next/dynamic'
+
+// Lazy load the unified connect wallet group to ensure @privy-io/react-auth 
+// dependency tree is completely code-split from the initial bundle.
+const ConnectWalletGroup = dynamic(
+  () => import('./connect-wallet-group').then(mod => mod.ConnectWalletGroup),
+  { ssr: false }
+)
 
 interface TopNavBarProps {
   onMenuClick?: () => void
 }
 
 export function TopNavBar({ onMenuClick }: TopNavBarProps) {
-  const { status, connect, disconnect, address, error } = useStarkSdk()
-  const isConnected = status === 'connected' && Boolean(address)
-  const isConnecting = status === 'connecting'
-  const isError = status === 'error'
-
-  const buttonLabel = isConnecting
-    ? 'Connecting…'
-    : isConnected
-      ? `${address?.slice(0, 6)}…${address?.slice(-4)}`
-      : isError
-        ? 'Retry'
-        : 'Connect'
-
   return (
     <nav className="border-b border-slate-700/50 bg-slate-mid/80 backdrop-blur-md sticky top-0 z-50">
       <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
@@ -45,25 +39,8 @@ export function TopNavBar({ onMenuClick }: TopNavBarProps) {
         </div>
 
         {/* Right: Connect Button */}
-        <div className="flex items-center gap-2">
-          {isError && error && (
-            <span className="text-xs text-destructive hidden sm:inline max-w-[180px] truncate">{error}</span>
-          )}
-          <button
-            onClick={() => (isConnected ? disconnect() : connect())}
-            disabled={isConnecting}
-            className={`px-4 sm:px-6 py-2 rounded-full font-semibold text-sm sm:text-base transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed active:scale-95 flex items-center gap-2 ${
-              isConnected
-                ? 'bg-gradient-to-r from-green-500/80 to-emerald-500/80 text-white hover:from-green-500 hover:to-emerald-500'
-                : isError
-                  ? 'bg-gradient-to-r from-red-500/80 to-orange-500/80 text-white hover:from-red-500 hover:to-orange-500'
-                  : 'bg-gradient-to-r from-neon-purple to-neon-blue text-slate-dark hover:from-neon-purple/80 hover:to-neon-blue/80 hover:shadow-neon-purple/50'
-            }`}
-          >
-            {isConnecting && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isConnected && <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse" />}
-            {buttonLabel}
-          </button>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <ConnectWalletGroup />
         </div>
       </div>
     </nav>

@@ -3,9 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "@starknet-react/core";
 import { ControllerConnector } from "@cartridge/connector";
-import { ChainId, StarkZap } from "starkzap";
 import { controllerPolicies, web3Config } from "@/lib/web3-config";
 import { createStarkzapWallet } from "@/lib/starkzap-wallet-adapter";
+import { getStarkzap, getStarkzapSync } from "@/lib/starkzap-client";
 
 type StarkZapWallet = {
   address?: string;
@@ -15,7 +15,7 @@ type StarkZapWallet = {
 };
 
 type StarkSdkContextValue = {
-  sdk: StarkZap;
+  sdk: any | null;
   wallet: StarkZapWallet | null;
   status: "idle" | "connecting" | "connected" | "error";
   error?: string;
@@ -31,30 +31,14 @@ export const controllerConnector = new ControllerConnector({
   chains: [{ rpcUrl: web3Config.rpcUrl }],
 });
 
-function resolveChainId() {
-  switch (web3Config.chainId) {
-    case "SEPOLIA":
-      return ChainId.SEPOLIA;
-    case "MAINNET":
-      return ChainId.MAINNET;
-    default:
-      return ChainId.SEPOLIA;
-  }
-}
-
-function getWalletAddress(wallet: StarkZapWallet | null) {
-  return wallet?.account?.address ?? wallet?.address ?? undefined;
-}
-
 export function StarkSdkProvider({ children }: { children: React.ReactNode }) {
-  const sdk = useMemo(
-    () =>
-      new StarkZap({
-        rpcUrl: web3Config.rpcUrl,
-        chainId: resolveChainId(),
-      }),
-    []
-  );
+  const [sdk, setSdk] = useState<any | null>(null);
+
+  // Lazy-load the StarkZap SDK on mount (client-side only)
+  useEffect(() => {
+    getStarkzap().then(setSdk).catch(console.error);
+  }, []);
+
   const { connect: connectWallet, connectors } = useConnect();
   const { disconnect: disconnectWallet } = useDisconnect();
   const { account, address, status: accountStatus } = useAccount();
@@ -109,7 +93,7 @@ export function StarkSdkProvider({ children }: { children: React.ReactNode }) {
       wallet,
       status,
       error,
-      address: address ?? getWalletAddress(wallet),
+      address: address ?? wallet?.account?.address ?? wallet?.address ?? undefined,
       connect,
       disconnect,
     }),

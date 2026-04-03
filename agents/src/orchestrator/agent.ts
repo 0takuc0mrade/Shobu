@@ -6,6 +6,7 @@ import { provision, triggers, PlatformClient } from '@openserv-labs/client'
 import { z } from 'zod'
 
 import { loadConfig, getConfig } from '../shared/config.js'
+import { getEVMAdapter } from '../shared/evm-adapter.js'
 import { initSession, executeAndWait, simulateCall, normalizeAddress, SettlementCooldown } from '../shared/starknet.js'
 import {
   fetchOpenPools,
@@ -32,10 +33,15 @@ const cooldown = new SettlementCooldown(10 * 60 * 1000)
 const agent = new Agent({
   systemPrompt: `You are the Shobu Orchestrator — the master coordinator for the Shobu betting protocol's AI agent suite. You can scan for new games and create pools, settle finished games, and generate market analysis. You coordinate the full lifecycle of betting pools: creation → monitoring → settlement → analysis.
 
+CRITICAL: You are a MULTICHAIN agent. You must dynamically select the network adapter based on the user's prompt or the game's home chain.
+- For FOCG games like "Pistols at 10 Blocks" or "Loot Survivor", use the Starknet tools (scan_and_create).
+- For Beam-native EVM games like "Shrapnel", use the execute_beam_pool tool to route transactions over EVM.
+
 When triggered, assess the current state of the protocol and take appropriate action:
-1. First, scan for new games that need pools
-2. Then, check for pools ready to settle
-3. Finally, generate a market overview
+1. First, scan for new games that need pools.
+2. If the user explicitly asks to open a pool for a Beam/EVM game, use execute_beam_pool.
+3. Then, check for pools ready to settle.
+4. Finally, generate a market overview.
 
 Use your capabilities in the correct order and provide a comprehensive status report.`,
 })
@@ -123,6 +129,37 @@ agent.addCapability({
       ? `Pool scan complete:\n${results.join('\n')}`
       : 'All games already have pools.'
   },
+})
+
+// --- Capability: execute_beam_pool ---
+agent.addCapability({
+  name: 'execute_beam_pool',
+  description: 'Create a betting pool on the Beam EVM network for games like Shrapnel.',
+  inputSchema: z.object({
+    gameName: z.string().describe('The name of the game on Beam (e.g., Shrapnel)'),
+    player1: z.string().describe('Address of player 1 (e.g., 0x123...)'),
+    player2: z.string().describe('Address of player 2 (e.g., 0x456...)'),
+  }),
+  async run({ args: { gameName, player1, player2 } }) {
+    const config = getConfig()
+    
+    // Validate inputs or provide defaults for testing
+    const p1 = player1.startsWith('0x') ? player1 as `0x${string}` : '0x0000000000000000000000000000000000000001' as `0x${string}`
+    const p2 = player2.startsWith('0x') ? player2 as `0x${string}` : '0x0000000000000000000000000000000000000002' as `0x${string}`
+    
+    // Address of Escrow.sol on Beam testnet (to be updated post-deployment)
+    const beamEscrow = (process.env.BEAM_ESCROW_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`
+    const beamToken = (process.env.BEAM_TOKEN_ADDRESS || '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb') as `0x${string}`
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + config.DEFAULT_DEADLINE_SECONDS)
+
+    try {
+      const adapter = getEVMAdapter()
+      const txHash = await adapter.createPool(beamEscrow, beamToken, p1, p2, deadline)
+      return `Successfully routed to Beam Testnet and created EVM pool for ${gameName}. TX Hash: ${txHash}`
+    } catch (err: any) {
+      return `Failed to route EVM pool for ${gameName}: ${err?.message ?? err}`
+    }
+  }
 })
 
 // --- Capability: settle_all ---

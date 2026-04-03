@@ -10,24 +10,27 @@ Shobu lets anyone create permissionless betting pools around on-chain game outco
 
 ```
 shobu/
-├── src/                     # Cairo smart contracts (Dojo world)
-│   ├── systems/actions.cairo    # Escrow contract — pool lifecycle
+├── src/                     # Smart contracts
+│   ├── systems/actions.cairo    # Starknet Escrow — pool lifecycle (Dojo)
 │   ├── models.cairo             # BettingPool, Bet, OddsSnapshot, etc.
 │   ├── interfaces.cairo         # IGameWorld, IMinigameTokenData, IERC20
 │   ├── odds.cairo               # On-chain odds calculation
-│   └── tests/                   # Cairo unit tests
+│   ├── tests/                   # Cairo unit tests
+│   └── beam/                    # EVM Escrow (Foundry / Solidity)
+│       ├── src/Escrow.sol          # Beam Testnet betting contract
+│       └── script/Deploy.s.sol     # Forge deployment script
 ├── frontend/                # Next.js betting UI
 │   ├── app/                     # App router pages
 │   ├── components/              # Betting UI components
-│   ├── providers/               # StarkZap + Cartridge Controller
-│   └── lib/                     # Web3 config, utilities
+│   ├── providers/               # Privy (EVM) + Cartridge (Starknet)
+│   └── lib/                     # Web3 config, StarkZap v2 SDK, utilities
 └── agents/                  # OpenServ AI agents (TypeScript)
     └── src/
-        ├── shared/              # Config, Starknet session, Torii queries
+        ├── shared/              # Config, Starknet session, EVM adapter, Torii
         ├── pool-creator/        # Automated pool creation from game feeds
         ├── settler/             # Automated game settlement
         ├── analyst/             # AI-powered odds & market analysis
-        └── orchestrator/        # Full lifecycle coordinator
+        └── orchestrator/        # Full lifecycle coordinator (chain-aware)
 ```
 
 ---
@@ -94,6 +97,22 @@ Coordinates the full pool lifecycle in a single call: scan → create → settle
 
 - **Trigger**: Webhook
 - **Capabilities**: `scan_and_create`, `settle_all`, `protocol_status`, `full_cycle`
+
+
+---
+
+## 👁️ The V2 Vision: A Multimodal Agentic Pipeline
+
+Shōbu is pioneering the concept of an **aICM (agentic Internet Capital Market)** by eliminating human intervention in market creation and settlement. 
+
+In V1, the `Settler` agent resolves Web2 matches (like Riot Games) by pinging official APIs. In **V2**, Shōbu completely bypasses centralized, rate-limited APIs through a custom **Computer Vision Pipeline**.
+
+1. **Stream Ingestion**: The `Settler` agent spawns a headless browser (Puppeteer) and navigates to the live Twitch or YouTube stream of the match.
+2. **Visual Sampling**: Every 10 seconds, it extracts a 1080p frame of the broadcast.
+3. **Multimodal Extraction**: The frame is sent to a lightweight OCR model (or a frontier model like Gemini Pro Vision) tasked with reading the UI/scoreboard state (e.g., Kills, Gold Difference, Objectives).
+4. **Agentic Verification**: Once the visual state matches the betting pool's conditions (e.g., "Will Faker get 10 kills?"), the `Settler` agent autonomously formats the cryptographic proof and executes the settlement algorithm on Starknet using its Cartridge session key.
+
+This ensures the protocol remains fully decentralized, capable of creating micro-betting markets on *any* visual broadcast without needing official API access.
 
 ---
 
@@ -164,11 +183,13 @@ The protocol is deployed on **Starknet Sepolia**:
 
 | Layer | Technology |
 |-------|-----------|
-| Smart Contracts | Cairo, Dojo Framework |
+| Smart Contracts (Starknet) | Cairo, Dojo Framework |
+| Smart Contracts (EVM) | Solidity, Foundry, OpenZeppelin |
 | Indexer | Torii (Dojo SDK) |
-| Frontend | Next.js, StarkZap, Cartridge Controller |
-| Agents | OpenServ SDK, TypeScript, Cartridge Sessions |
-| Network | Starknet Sepolia |
+| Frontend | Next.js, Privy (EVM auth), Cartridge Controller (Starknet auth) |
+| SDK | StarkZap v2 (wallets, swaps, confidential transfers) |
+| Agents | OpenServ SDK, TypeScript, Cartridge Sessions, viem |
+| Networks | Starknet Sepolia, Beam Testnet (chain 13337) |
 
 ---
 
@@ -182,12 +203,26 @@ Shobu is evolving into a fully autonomous, cross-chain betting infrastructure. O
 - **Protocol Audit Trails**: Implement structured logging and persistent file uploads for full operational transparency.
 - **zkTLS Research & POC**: Study zkTLS (e.g., Reclaim) and prototype Web2 match settlement proofs for Starknet.
 
-### Phase 2: Monetization & Ecosystem
+### Phase 2: Multichain & StarkZap Integration
+- **Beam EVM Escrow**: Deploy Solidity escrow contract on Beam Testnet for EVM-native betting pools. ✅
+- **Privy Auth Migration**: Dual login (email/social via Privy + Cartridge for Starknet degens). ✅
+- **Chain-Aware Agent Routing**: Orchestrator dynamically routes to Starknet or Beam based on game. ✅
+- **StarkZap v2 SDK**: Scaffold wallet onboarding, token transfers, swaps, and confidential transfers.
+  - Wallet onboarding (Privy, Cartridge, raw signers)
+  - Token transfers & balances (STRK, ETH, USDC, BTC)
+  - Confidential transfers via Tongo (`@fatsolutions/tongo-sdk`)
+  - Ethereum bridging (via `ethers`)
+  - Swaps, staking, DCA, lending
+- **Future StarkZap Use for Shōbu**:
+  - Shield high-roller FOCG betting amounts on Starknet
+  - Gasless token approvals for Dojo escrow interactions
+
+### Phase 3: Monetization & Ecosystem
 - **x402 Paid Analysis**: Enable paid API calls for the Analyst agent to provide premium market intelligence.
 - **Ideaboard Synergy**: List Shobu services on the OpenServ Ideaboard to foster multi-agent collaboration.
 - **Multi-Agent Orchestration**: Implement declarative workflow edges for true, DAG-based autonomous coordination.
 
-### Phase 3: Expansion & Optimization
+### Phase 4: Expansion & Optimization
 - **Base Protocol Token**: Launch the SHOBU token on Base with Aerodrome concentrated liquidity.
 - **Runless AI Optimization**: Pivot to platform-native runless capabilities to minimize agent overhead and cost.
 

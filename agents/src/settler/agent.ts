@@ -140,6 +140,49 @@ agent.addCapability({
   },
 })
 
+// --- Capability: settle_extraction_pool (Shrapnel Cross-Subnet Oracle) ---
+agent.addCapability({
+  name: 'settle_extraction_pool',
+  description:
+    'Settle a Shrapnel extraction pool by reading match events from the Avalanche Subnet and dispatching the settlement directly on Beam EVM.',
+  inputSchema: z.object({
+    poolId: z.number().int().describe('Pool ID on Beam to settle'),
+    matchId: z.string().describe('Shrapnel Match ID to verify on Avalanche Subnet'),
+    playerAddress: z.string().describe('Player Address on the Shrapnel network'),
+    shrapnelMatchContract: z.string().describe('The Shrapnel stats smart contract tracking successful extractions')
+  }),
+  async run({ args }) {
+    const config = getConfig()
+    const poolId = args.poolId
+    
+    try {
+      // Step 1: Read Layer (Avalanche Subnet)
+      const { checkExtractionStatus } = await import('../shared/evm-adapter.js')
+      const { extracted, sigma } = await checkExtractionStatus(
+        args.shrapnelMatchContract as `0x${string}`, 
+        args.matchId as `0x${string}`, 
+        args.playerAddress as `0x${string}`
+      )
+
+      if (!extracted) {
+        return `Player ${args.playerAddress} has not successfully extracted from match ${args.matchId} on the Shrapnel subsystem. Settlement cannot proceed.`
+      }
+
+      // Step 2: Write Layer (Beam Testnet) via the Orchestrator / Evm Adapter
+      // Hot swap to the Beam network to settle the pool (Using EVM adapter internally)
+      const { getEVMAdapter } = await import('../shared/evm-adapter.js')
+      const adapter = getEVMAdapter()
+      const beamEscrow = config.BEAM_ESCROW_ADDRESS! as `0x${string}`
+      
+      const txHash = await adapter.settlePool(beamEscrow, poolId, args.playerAddress as `0x${string}`)
+      
+      return `Cross-subnet settlement complete for Shrapnel pool #${poolId}! Player successfully extracted ${sigma} sigma. Beam TX: ${txHash}`
+    } catch (err: any) {
+      return `Cross-subnet execution failed for Shrapnel pool #${poolId}: ${err?.message ?? String(err)}`
+    }
+  }
+})
+
 // --- Capability: auto_settle ---
 agent.addCapability({
   name: 'auto_settle',

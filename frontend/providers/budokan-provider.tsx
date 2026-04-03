@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 const BUDOKAN_TORII_URL = process.env.NEXT_PUBLIC_BUDOKAN_TORII_URL || "";
 
@@ -37,7 +38,7 @@ const BudokanContext = createContext<BudokanContextValue | null>(null);
 
 // Introspect Budokan Torii to find the correct model names
 async function introspectToriiModels(toriiUrl: string): Promise<string[]> {
-  const res = await fetch(`${toriiUrl}/graphql`, {
+  const res = await fetchWithTimeout(`${toriiUrl}/graphql`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -90,7 +91,7 @@ async function fetchBudokanTournaments(toriiUrl: string): Promise<BudokanTournam
   }`;
 
   try {
-    const res = await fetch(`${toriiUrl}/graphql`, {
+    const res = await fetchWithTimeout(`${toriiUrl}/graphql`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -144,7 +145,11 @@ export function BudokanProvider({ children }: { children: React.ReactNode }) {
       setTournaments(data);
     } catch (err) {
       console.error("Budokan fetch error:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch tournaments");
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Budokan request timed out");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to fetch tournaments");
+      }
     } finally {
       setLoading(false);
     }
