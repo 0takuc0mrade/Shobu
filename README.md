@@ -35,6 +35,18 @@ shobu/
 
 ---
 
+## ⛓️ Beam EVM & Shrapnel Integration
+
+Shōbu leverages the **Beam EVM** to bring AAA extraction shooters like **Shrapnel** directly onto the decentralized betting protocol.
+
+Rather than relying on slow interoperability bridges, Shōbu's AI agent swarm acts as an instant off-chain settlement highway between isolated subnets:
+- **Read Layer (Avalanche Subnet)**: The `Settler` agent securely polls the Shrapnel AVAX Subnet for native `ExtractionSuccessful` smart contract logs to verify if a player survived the match and deposited Sigma.
+- **Write Layer (Beam Testnet)**: Upon mathematical verification, the agent instantly drops the Avalanche connection, hot-swaps to the Beam RPC, and securely signs the payout directly onto the Beam `Escrow` pool.
+
+This sub-second settlement model unlocks high-frequency prop-betting that traditional bridging protocols simply cannot support.
+
+---
+
 ## Smart Contracts
 
 The core `Escrow` contract manages the entire betting lifecycle:
