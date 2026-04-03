@@ -79,10 +79,10 @@ Monitors game feeds from the [denshokan API](https://denshokan-api-production.up
 
 ### Settler
 
-Scans open pools and attempts settlement for any whose games have finished. Settlement is permissionless — the on-chain call reverts if the game isn't done yet, so it's safe to try and skip.
+Scans open pools and attempts settlement for any whose games have finished. Settlement is permissionless on Starknet. For **Shrapnel (EVM)**, the Settler acts as an off-chain cross-subnet highway: reading events from the Avalanche subnet and instantly signing payouts onto the Beam EVM Escrow, bypassing slow bridges!
 
 - **Trigger**: Cron (every 2 minutes)
-- **Capabilities**: `list_open_pools`, `check_game_status`, `settle_pool`, `auto_settle`
+- **Capabilities**: `list_open_pools`, `check_game_status`, `settle_pool`, `auto_settle`, `settle_extraction_pool`
 
 ### Analyst
 
@@ -208,9 +208,9 @@ Shobu is evolving into a fully autonomous, cross-chain betting infrastructure. O
 - **Privy Auth Migration**: Dual login (email/social via Privy + Cartridge for Starknet degens). ✅
 - **Chain-Aware Agent Routing**: Orchestrator dynamically routes to Starknet or Beam based on game. ✅
 - **StarkZap v2 SDK**: Scaffold wallet onboarding, token transfers, swaps, and confidential transfers.
-  - Wallet onboarding (Privy, Cartridge, raw signers)
+  - Wallet onboarding (Privy, Cartridge, raw signers) ✅
   - Token transfers & balances (STRK, ETH, USDC, BTC)
-  - Confidential transfers via Tongo (`@fatsolutions/tongo-sdk`)
+  - Confidential transfers via Tongo (Shielded Bets testing complete) ✅
   - Ethereum bridging (via `ethers`)
   - Swaps, staking, DCA, lending
 - **Future StarkZap Use for Shōbu**:

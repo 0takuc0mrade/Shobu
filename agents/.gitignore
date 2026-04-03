@@ -3,3 +3,4 @@ dist/
 .env
 .openserv.json
 .cartridge-agent-session/
+.codex/
