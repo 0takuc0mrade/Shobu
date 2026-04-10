@@ -189,7 +189,10 @@ agent.addCapability({
 
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
-        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+          skipped++ // Vision AI pools require explicit screenshot submission
+          continue
+        } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
           if (!web2) {
             cooldown.markFailed(poolId)
@@ -367,7 +370,9 @@ agent.addCapability({
 
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
-        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+          continue // Autonomous background loop cannot resolve Vision AI without an image hook
+        } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
           if (!web2) {
             cooldown.markFailed(poolId)
@@ -449,7 +454,9 @@ async function runCycle() {
 
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
-        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+          continue
+        } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
           if (!web2) {
             cooldown.markFailed(poolId)

@@ -16,6 +16,7 @@ import {
 import { ENTRYPOINTS, POOL_STATUS, SETTLEMENT_MODE } from '../shared/constants.js'
 import { decodeShortString } from '../shared/encoding.js'
 import { generateRiotReclaimProof } from '../shared/reclaim.js'
+import { runVisionConsensus } from '../shared/vision-oracle.js'
 
 // -----------------------------------------------------------------------
 // Settlement cooldown — prevents retrying recently-failed pools
@@ -101,6 +102,10 @@ agent.addCapability({
       const pool = await fetchPoolById(args.poolId)
       if (!pool) return `Pool #${args.poolId} not found.`
 
+      if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+        return `Pool #${args.poolId} uses the AI Vision Oracle constraint. Please use the 'settle_vision_pool' tool with an image URL instead of 'settle_pool'.`
+      }
+
       if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
         const web2 = await fetchWeb2PoolById(args.poolId)
         if (!web2) return `Web2 metadata not found for pool #${args.poolId}.`
@@ -183,6 +188,89 @@ agent.addCapability({
   }
 })
 
+// --- Capability: settle_vision_pool (AI Vision Oracle Consensus) ---
+agent.addCapability({
+  name: 'settle_vision_pool',
+  description:
+    'Settle a pool using the AI Vision Oracle. Accepts a screenshot URL or base64-encoded image of a game result screen. Runs 2-of-3 diverse-model consensus (Gemini + Gemma + Llama) and only settles if models agree.',
+  inputSchema: z.object({
+    poolId: z.number().int().describe('Pool ID to settle'),
+    imageUrl: z.string().optional().describe('URL to a screenshot of the game result (e.g., Twitch VOD frame)'),
+    imageBase64: z.string().optional().describe('Base64-encoded image data (alternative to imageUrl)'),
+    mimeType: z.string().optional().describe('MIME type of the image (default: image/png)'),
+    prompt: z.string().optional().describe('Custom prompt for the vision models (optional)'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+    const { poolId, imageUrl, imageBase64, prompt } = args
+    const mime = args.mimeType ?? 'image/png'
+
+    // Validate pool exists and is open
+    const pool = await fetchPoolById(poolId)
+    if (!pool) return `Pool #${poolId} not found.`
+    if (Number(pool.status) !== POOL_STATUS.OPEN)
+      return `Pool #${poolId} is not open (status=${pool.status}).`
+
+    // Get the image as base64
+    let base64: string
+    if (imageBase64) {
+      base64 = imageBase64
+    } else if (imageUrl) {
+      try {
+        const imgResponse = await fetch(imageUrl)
+        if (!imgResponse.ok)
+          return `Failed to fetch image from URL: ${imgResponse.status}`
+        const buffer = await imgResponse.arrayBuffer()
+        base64 = Buffer.from(buffer).toString('base64')
+      } catch (err: any) {
+        return `Failed to download image: ${err?.message ?? err}`
+      }
+    } else {
+      return 'Either imageUrl or imageBase64 must be provided.'
+    }
+
+    // Run the 2-of-3 consensus
+    console.log(`[settler] 🔍 Running AI Vision Oracle for pool #${poolId}...`)
+    const result = await runVisionConsensus(base64, mime, prompt)
+
+    if (!result.consensus) {
+      return [
+        `🚨 Vision Oracle DISPUTE for pool #${poolId} — no 2-of-3 consensus reached.`,
+        `Gemini: ${JSON.stringify(result.votes.gemini)}`,
+        `Gemma:  ${JSON.stringify(result.votes.gemma)}`,
+        `Llama:  ${JSON.stringify(result.votes.llama)}`,
+        `Pool remains OPEN. Manual review or retry with a cleaner screenshot recommended.`,
+      ].join('\n')
+    }
+
+    const verdict = result.verdict!
+    console.log(`[settler] ✅ Consensus reached for pool #${poolId}: ${JSON.stringify(verdict)} (${result.agreeing_models.join(' + ')})`)
+
+    // Determine the winner based on the extraction outcome
+    // For extraction-style games: extracted=true means player 1 wins
+    const winner = verdict.extracted ? 1 : 2
+
+    try {
+      const txHash = await executeAndWait([
+        {
+          contractAddress: config.ESCROW_ADDRESS,
+          entrypoint: ENTRYPOINTS.settlePool,
+          calldata: [poolId.toString(), winner.toString()],
+        },
+      ])
+
+      return [
+        `✅ Vision Oracle settled pool #${poolId}`,
+        `Winner: Player ${winner} (extracted=${verdict.extracted}, sigma=${verdict.sigma_banked})`,
+        `Consensus: ${result.agreeing_models.join(' + ')} (${result.agreeing_models.length}/3)`,
+        `TX: ${txHash}`,
+      ].join('\n')
+    } catch (err: any) {
+      return `Vision consensus passed but on-chain settlement failed for pool #${poolId}: ${err?.message ?? err}`
+    }
+  },
+})
+
 // --- Capability: auto_settle ---
 agent.addCapability({
   name: 'auto_settle',
@@ -218,7 +306,11 @@ agent.addCapability({
 
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
-        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+          // Vision AI pools require explicit screenshot submission via settle_vision_pool, skip auto-settle
+          skipped++
+          continue
+        } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
           if (!web2) {
             cooldown.markFailed(poolId)
@@ -322,7 +414,10 @@ async function runSettleCycle() {
 
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
-        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+        if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+          skipped++ // Autonomous background loop cannot resolve Vision AI without an image hook
+          continue
+        } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
           if (!web2) {
             cooldown.markFailed(poolId)

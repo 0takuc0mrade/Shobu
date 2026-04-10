@@ -59,6 +59,7 @@ export const SETTLEMENT_MODE = {
   EGS: 1,       // Denshokan/EGS settlement
   BUDOKAN: 2,   // Budokan tournament settlement
   WEB2_ZKTLS: 3, // Web2 zkTLS settlement
+  VISION_AI: 4, // AI Vision Oracle consensus settlement
 } as const
 
 // -----------------------------------------------------------------------

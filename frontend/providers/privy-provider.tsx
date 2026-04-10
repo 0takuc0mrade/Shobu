@@ -1,7 +1,33 @@
 "use client";
 
-import { PrivyProvider } from "@privy-io/react-auth";
+import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useState, useEffect } from "react";
+import { PrivyStatusContext, type PrivyStatus } from "./privy-status-context";
+
+/**
+ * Inner component that reads Privy hooks and pushes values into
+ * the lightweight PrivyStatusContext so the rest of the app can
+ * check auth state without importing @privy-io/react-auth.
+ */
+function PrivyStatusBridge({ children }: { children: React.ReactNode }) {
+  const { login, logout, authenticated, ready } = usePrivy();
+  const { wallets } = useWallets();
+
+  const status: PrivyStatus = {
+    ready,
+    authenticated,
+    evmAddress: wallets?.[0]?.address,
+    wallets: wallets ?? [],
+    login,
+    logout,
+  };
+
+  return (
+    <PrivyStatusContext.Provider value={status}>
+      {children}
+    </PrivyStatusContext.Provider>
+  );
+}
 
 export function PrivyAuthProvider({ children }: { children: React.ReactNode }) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -33,7 +59,7 @@ export function PrivyAuthProvider({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      {children}
+      <PrivyStatusBridge>{children}</PrivyStatusBridge>
     </PrivyProvider>
   );
 }

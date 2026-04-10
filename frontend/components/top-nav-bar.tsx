@@ -1,7 +1,8 @@
 'use client'
 
-import { Menu } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 // Lazy load the unified connect wallet group to ensure @privy-io/react-auth 
 // dependency tree is completely code-split from the initial bundle.
@@ -10,39 +11,42 @@ const ConnectWalletGroup = dynamic(
   { ssr: false }
 )
 
-interface TopNavBarProps {
-  onMenuClick?: () => void
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const pathname = usePathname()
+  const isActive = pathname === href
+  return (
+    <Link 
+      href={href} 
+      className={`pb-1 transition-colors duration-100 ${
+        isActive 
+          ? 'text-primary border-b-2 border-neon-purple' 
+          : 'text-muted-foreground hover:text-neon-purple'
+      }`}
+    >
+      {children}
+    </Link>
+  )
 }
 
-export function TopNavBar({ onMenuClick }: TopNavBarProps) {
+export function TopNavBar() {
   return (
-    <nav className="border-b border-slate-700/50 bg-slate-mid/80 backdrop-blur-md sticky top-0 z-50">
-      <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-        {/* Left: Logo and Menu */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          {onMenuClick && (
-            <button
-              onClick={onMenuClick}
-              className="lg:hidden p-2 hover:bg-slate-700/50 rounded-lg transition-colors active:scale-95"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          )}
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Shōbu Logo */}
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-neon-purple to-neon-blue flex items-center justify-center shadow-lg shadow-neon-purple/50 hover:shadow-neon-purple/70 transition-shadow">
-              <span className="text-white font-bold text-sm sm:text-lg">⚔</span>
-            </div>
-            <h1 className="text-lg sm:text-xl font-bold neon-glow hidden sm:inline">Shōbu</h1>
-          </div>
-        </div>
-
-        {/* Right: Connect Button */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          <ConnectWalletGroup />
-        </div>
+    <header className="bg-surface text-neon-purple font-headline tracking-tighter uppercase font-bold text-sm top-0 z-50 flex justify-between items-center px-4 md:px-8 h-16 w-full border-b border-surface-container-low shrink-0">
+      <div className="flex items-center gap-8">
+        <Link href="/" className="text-xl md:text-2xl font-bold tracking-tighter text-neon-purple border-t-2 border-neon-purple pt-1 relative">
+          SHŌBU
+          {/* subtle glow effect on logo text */}
+          <span className="absolute inset-x-0 bottom-0 h-4 bg-neon-purple/20 blur-md -z-10 block pointer-events-none" />
+        </Link>
+        <nav className="hidden md:flex gap-6 items-center text-[11px] tracking-widest mt-1">
+          <NavLink href="/match">Live Oracles</NavLink>
+          <NavLink href="/resolved">Resolved Markets</NavLink>
+          <NavLink href="/portfolio">My Portfolio</NavLink>
+        </nav>
       </div>
-    </nav>
+      
+      <div className="flex items-center gap-4">
+        <ConnectWalletGroup />
+      </div>
+    </header>
   )
 }
