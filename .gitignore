@@ -3,3 +3,4 @@ dojo_mainnet.toml
 budokan/
 .synthesis-credentials
 node_modules
+.env

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cartridge/controller": "^0.13.9",
+    "@initia/initia.js": "^1.1.0",
     "@openserv-labs/client": "^2.5.3",
     "@openserv-labs/sdk": "^2.4.1",
     "@stellar/mpp": "^0.4.0",

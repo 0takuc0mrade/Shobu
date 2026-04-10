@@ -1,0 +1,15 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -10,6 +10,9 @@
+   "types": "build/index.d.ts",
+   "exports": {
+-    "types": "./build/index.d.ts",
+-    "default": "./build/index.js"
++    ".": {
++      "types": "./build/index.d.ts",
++      "default": "./build/index.js"
++    },
++    "./*": "./*"
+   },
+   "files": [

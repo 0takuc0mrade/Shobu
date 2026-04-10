@@ -14,6 +14,11 @@ const PrivyAuthProvider = dynamic(
   () => import("@/providers/privy-provider").then((mod) => mod.PrivyAuthProvider),
   { ssr: false }
 );
+// Lazy-load Initia
+const InitiaAuthProvider = dynamic(
+  () => import("@/providers/initia-provider").then((mod) => mod.InitiaAuthProvider),
+  { ssr: false }
+);
 
 const provider = jsonRpcProvider({
   rpc: () => ({ nodeUrl: web3Config.rpcUrl }),
@@ -23,21 +28,23 @@ const defaultChainId = web3Config.chainId === "MAINNET" ? mainnet.id : sepolia.i
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <PrivyAuthProvider>
-      <StarknetConfig
-        chains={[mainnet, sepolia]}
-        defaultChainId={defaultChainId}
-        provider={provider}
-        connectors={[controllerConnector]}
-        autoConnect
-      >
-        <StarkSdkProvider>
-            <EgsProvider>
-              <BudokanProvider>{children}</BudokanProvider>
-            </EgsProvider>
-        </StarkSdkProvider>
-      </StarknetConfig>
-    </PrivyAuthProvider>
+    <InitiaAuthProvider>
+      <PrivyAuthProvider>
+        <StarknetConfig
+          chains={[mainnet, sepolia]}
+          defaultChainId={defaultChainId}
+          provider={provider}
+          connectors={[controllerConnector]}
+          autoConnect
+        >
+          <StarkSdkProvider>
+              <EgsProvider>
+                <BudokanProvider>{children}</BudokanProvider>
+              </EgsProvider>
+          </StarkSdkProvider>
+        </StarknetConfig>
+      </PrivyAuthProvider>
+    </InitiaAuthProvider>
   );
 }
 

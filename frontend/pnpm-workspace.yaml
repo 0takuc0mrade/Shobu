@@ -1,0 +1,15 @@
+patchedDependencies:
+  '@cosmjs/amino': patches/@cosmjs__amino.patch
+  '@cosmjs/cosmwasm': patches/@cosmjs__cosmwasm.patch
+  '@cosmjs/cosmwasm-stargate': patches/@cosmjs__cosmwasm-stargate.patch
+  '@cosmjs/crypto': patches/@cosmjs__crypto.patch
+  '@cosmjs/encoding': patches/@cosmjs__encoding.patch
+  '@cosmjs/json-rpc': patches/@cosmjs__json-rpc.patch
+  '@cosmjs/math': patches/@cosmjs__math.patch
+  '@cosmjs/proto-signing': patches/@cosmjs__proto-signing.patch
+  '@cosmjs/socket': patches/@cosmjs__socket.patch
+  '@cosmjs/stargate': patches/@cosmjs__stargate.patch
+  '@cosmjs/stream': patches/@cosmjs__stream.patch
+  '@cosmjs/tendermint-rpc': patches/@cosmjs__tendermint-rpc.patch
+  '@cosmjs/utils': patches/@cosmjs__utils.patch
+  cosmjs-types: patches/cosmjs-types.patch

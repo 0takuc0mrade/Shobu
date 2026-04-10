@@ -16,6 +16,10 @@ const nextConfig = {
     'ethers',
   ],
   webpack: (config, { isServer }) => {
+    // Work around invalid "exports" maps in some @cosmjs/* packages.
+    // Webpack will then fall back to "main"/"module" fields instead.
+    config.resolve.exportsFields = [];
+
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
