@@ -3,6 +3,7 @@
 import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useState, useEffect } from "react";
 import { PrivyStatusContext, type PrivyStatus } from "./privy-status-context";
+import { defineChain } from "viem";
 
 /**
  * Inner component that reads Privy hooks and pushes values into
@@ -57,6 +58,22 @@ export function PrivyAuthProvider({ children }: { children: React.ReactNode }) {
             createOnLogin: "users-without-wallets",
           },
         },
+        supportedChains: [
+          defineChain({
+            id: 133,
+            name: "HashKey Chain Testnet",
+            network: "hashkey-testnet",
+            nativeCurrency: { name: "HashKey EcoPoints", symbol: "HSK", decimals: 18 },
+            rpcUrls: {
+              default: { http: ["https://hashkeychain-testnet.alt.technology"] },
+              public:  { http: ["https://hashkeychain-testnet.alt.technology"] },
+            },
+            blockExplorers: {
+              default: { name: "HashKey Explorer", url: "https://hashkeychain-testnet-explorer.alt.technology" },
+            },
+            testnet: true,
+          })
+        ],
       }}
     >
       <PrivyStatusBridge>{children}</PrivyStatusBridge>

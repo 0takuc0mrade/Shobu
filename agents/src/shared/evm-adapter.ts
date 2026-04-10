@@ -17,6 +17,21 @@ export const beamTestnet = defineChain({
   },
 });
 
+export const hashkeyTestnet = defineChain({
+  id: 133,
+  name: "HashKey Chain Testnet",
+  network: "hashkey-testnet",
+  nativeCurrency: { name: "HashKey EcoPoints", symbol: "HSK", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://hashkeychain-testnet.alt.technology"] },
+    public:  { http: ["https://hashkeychain-testnet.alt.technology"] },
+  },
+  blockExplorers: {
+    default: { name: "HashKey Explorer", url: "https://hashkeychain-testnet-explorer.alt.technology" },
+  },
+  testnet: true,
+});
+
 export const shrapnelSubnet = defineChain({
   id: 2044, // Shrapnel subnet ID placeholder
   name: 'Shrapnel Subnet',
@@ -53,7 +68,7 @@ const ESCROW_ABI = [
   }
 ] as const;
 
-export function getEVMAdapter() {
+export function getEVMAdapter(chain = beamTestnet) {
   const privateKeyString = process.env.AGENT_EVM_PRIVATE_KEY;
   if (!privateKeyString) {
     throw new Error("Missing AGENT_EVM_PRIVATE_KEY in .env");
@@ -68,7 +83,7 @@ export function getEVMAdapter() {
 
   const client = createWalletClient({
     account,
-    chain: beamTestnet,
+    chain,
     transport: http()
   }).extend(publicActions);
 

@@ -38,6 +38,7 @@ export const web3Config = {
   escrowAddress: process.env.NEXT_PUBLIC_ESCROW_ADDRESS ?? "",
   toriiUrl: process.env.NEXT_PUBLIC_TORII_URL ?? DEFAULT_TORII_URL,
   relayUrl: process.env.NEXT_PUBLIC_RELAY_URL ?? "",
+  stellarEscrowAddress: process.env.NEXT_PUBLIC_STELLAR_ESCROW_ADDRESS ?? "",
   activePoolId: Number(process.env.NEXT_PUBLIC_POOL_ID ?? "1"),
   egsGamesApi:
     process.env.NEXT_PUBLIC_EGS_GAMES_API ??

@@ -72,17 +72,13 @@ export function usePlaceBet() {
           const txHash = tx.hash().toString("hex");
           
           // Privy's Tier 2 Raw Sign flow explicitly requested by user:
-          // Note: depending on react-auth version, this might be fetched from usePrivy() directly
-          const { useSignRawHash } = await import("@privy-io/react-auth"); 
-          // We can't call hook dynamically, so we assume `privyWallet.sign(txHash)` or use signMessage for the raw byte mock
-          // we'll simulate the custom payload build here to let Privy sign it.
           const signature = await privyWallet.sign(txHash); 
           
           tx.addSignature(privyWallet.address, signature);
 
           const response = await rpcServer.sendTransaction(tx);
           if (response.status === "ERROR") {
-            throw new Error(`Soroban Tx Failed: ${response.errorResultXdr}`);
+            throw new Error(`Soroban Tx Failed: ${response.errorResult}`);
           }
           /** 
            * IMPORTANT: Wait for Soroban network propagation.
@@ -246,9 +242,14 @@ export function useClaimWinnings() {
 
           const response = await rpcServer.sendTransaction(tx);
           if (response.status === "ERROR") {
-            throw new Error(`Soroban Tx Failed: ${response.errorResultXdr}`);
+            throw new Error(`Soroban Tx Failed: ${response.errorResult}`);
           }
         } else if (chainType === "evm") {
+          // ── EVM Path: Privy wallet → viem → Beam Escrow ──
+          const evmWallet = privyWallets?.[0];
+          if (!evmWallet) throw new Error("No EVM wallet connected. Please sign in via Privy.");
+
+          const { createWalletClient, createPublicClient, custom, http, encodeFunctionData, parseAbi, defineChain } = await import("viem");
           const beamTestnet = defineChain({ id: 13337, name: "Beam Testnet", nativeCurrency: { name: "Beam", symbol: "BEAM", decimals: 18 }, rpcUrls: { default: { http: ["https://build.onbeam.com/rpc/testnet"] } } });
           const ESCROW_ABI = parseAbi(["function placeBet(uint32 poolId, address predictedWinner, uint128 amount) external", "function claimWinnings(uint32 poolId) external", "function approve(address spender, uint256 amount) external returns (bool)"]);
 
