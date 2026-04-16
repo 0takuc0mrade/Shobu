@@ -3,6 +3,6 @@
   "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia",
   "chain_id": "SN_SEPOLIA",
   "deployed_block": "",
-  "deployed_at": "2026-03-28T19:25:39Z",
+  "deployed_at": "2026-04-12T11:47:31Z",
   "account_address": "0x06b14d3c501353277cE408F0b2c4199f1450a4cC58e7114a628754De04F3782E"
 }

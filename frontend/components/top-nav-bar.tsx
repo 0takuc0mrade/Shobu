@@ -4,12 +4,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-// Lazy load the unified connect wallet group to ensure @privy-io/react-auth 
-// dependency tree is completely code-split from the initial bundle.
-const ConnectWalletGroup = dynamic(
-  () => import('./connect-wallet-group').then(mod => mod.ConnectWalletGroup),
-  { ssr: false }
-)
+import { ConnectWalletGroup } from './connect-wallet-group'
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   const pathname = usePathname()

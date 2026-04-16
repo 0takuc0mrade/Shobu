@@ -16,12 +16,12 @@ stellar contract build
 echo "✅ Compilation successful. Deploying to Stellar Testnet..."
 
 # Deploy the module to Stellar
-# Note: Ensure you have initialized your deployment identity using:
-# stellar keys generate --network testnet deployer
-
+# We use the default identity funded via curl
 stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/shobu_escrow_soroban.wasm \
-  --source-account deployer \
-  --network testnet
+  --wasm target/wasm32v1-none/release/shobu_escrow_soroban.wasm \
+  --source-account default \
+  --network testnet \
+  --network-passphrase "Test SDF Network ; September 2015" \
+  --rpc-url "https://soroban-testnet.stellar.org:443"
 
 echo "✅ Deployment to Stellar Testnet complete!"

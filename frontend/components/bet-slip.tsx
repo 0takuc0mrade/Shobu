@@ -92,7 +92,7 @@ export function BetSlip({ selectedPlayer, odds, poolId, betAmount, setBetAmount,
     }, 2000);
   };
 
-  const defaultPlayerName = selectedPlayer === 'playerA' ? 'Champion (Player A)' : 'Challenger (Player B)';
+  const defaultPlayerName = selectedPlayer === 'playerA' ? 'YES' : 'NO';
   const displayPlayerName = playerName || defaultPlayerName;
   const playerColor = selectedPlayer === 'playerA' ? 'text-neon-purple' : 'text-neon-blue';
 

@@ -6,6 +6,9 @@ import { Activity, LineChart, Wallet, CheckCircle2, XCircle, Clock, Terminal, Se
 import { useAllBettingPools, useUserBets } from '@/hooks/use-dojo-betting'
 import { useStarkSdk } from '@/providers/stark-sdk-provider'
 import { formatUnits } from '@/lib/token-utils'
+import { resolveTokenSymbol, resolveTokenDecimals } from '@/lib/token-formatters'
+import { usePrivyStatus } from '@/providers/privy-status-context'
+import { ClaimButton } from '@/components/claim-button'
 
 function formatPot(raw?: string, decimals = 18): string {
   if (!raw || raw === '0') return '0'
@@ -26,7 +29,10 @@ function decodeHexStr(hex?: string) {
 
 export default function ResolvedMarketsPage() {
   const { pools, web2Pools, loading: poolsLoading } = useAllBettingPools()
-  const { address } = useStarkSdk()
+  const { address, status } = useStarkSdk()
+  const { authenticated: privyAuthenticated, isFreighterConnected } = usePrivyStatus()
+  const isStarknetConnected = status === 'connected'
+  const chainType = isStarknetConnected ? 'starknet' : (privyAuthenticated || isFreighterConnected) ? 'stellar' : null
   const { bets } = useUserBets(address)
   const [filter, setFilter] = useState<string>('ALL')
 
@@ -209,13 +215,23 @@ export default function ResolvedMarketsPage() {
                           <td className="px-6 py-4">
                             <span className="text-primary font-bold">{pool.isWinnerP1 ? pool.p1Tag : pool.p2Tag}</span>
                           </td>
-                          <td className="px-6 py-4 text-white">{formatPot(pool.total_pot)} USDC</td>
+                          <td className="px-6 py-4 text-white">{formatPot(pool.total_pot)} {resolveTokenSymbol(pool, chainType)}</td>
                           <td className="px-6 py-4 text-white">
-                            {pool.userBet ? `${formatPot(pool.userBet.amount)} USDC` : '—'}
+                            {pool.userBet ? `${formatPot(pool.userBet.amount)} ${resolveTokenSymbol(pool, chainType)}` : '—'}
                           </td>
                           <td className="px-6 py-4">
                             {pool.userWon === true && (
-                              <span className="flex items-center gap-1 text-green-400 font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> WON</span>
+                              <div className="flex items-center gap-2 text-green-400 font-bold">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> WON
+                                {chainType && pool.userBet && (
+                                  <ClaimButton 
+                                    pool={pool} 
+                                    userBetAmount={pool.userBet.amount ?? '0'} 
+                                    chainType={chainType} 
+                                    className="ml-2"
+                                  />
+                                )}
+                              </div>
                             )}
                             {pool.userWon === false && (
                               <span className="flex items-center gap-1 text-red-400 font-bold"><XCircle className="w-3.5 h-3.5" /> LOST</span>
@@ -239,12 +255,23 @@ export default function ResolvedMarketsPage() {
                           <p className="text-xs font-bold text-white">{pool.p1Tag} vs {pool.p2Tag}</p>
                           <p className="text-[9px] text-on-surface-variant mt-0.5">{pool.provider || `Pool #${pool.pool_id}`}</p>
                         </div>
-                        {pool.userWon === true && <span className="text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5">WON</span>}
+                        {pool.userWon === true && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5">WON</span>
+                            {chainType && pool.userBet && (
+                              <ClaimButton 
+                                pool={pool} 
+                                userBetAmount={pool.userBet.amount ?? '0'} 
+                                chainType={chainType}
+                              />
+                            )}
+                          </div>
+                        )}
                         {pool.userWon === false && <span className="text-[9px] font-bold text-red-400 bg-red-400/10 px-2 py-0.5">LOST</span>}
                       </div>
                       <div className="flex justify-between text-[10px] font-mono mt-2">
                         <span className="text-on-surface-variant">Winner: <span className="text-primary">{pool.isWinnerP1 ? pool.p1Tag : pool.p2Tag}</span></span>
-                        <span className="text-white">{formatPot(pool.total_pot)} USDC</span>
+                        <span className="text-white">{formatPot(pool.total_pot)} {resolveTokenSymbol(pool, chainType)}</span>
                       </div>
                     </div>
                   ))}

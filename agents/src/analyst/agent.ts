@@ -19,12 +19,13 @@ import {
   type OddsSnapshotModel,
 } from '../shared/torii.js'
 import { POOL_STATUS, SETTLEMENT_MODE } from '../shared/constants.js'
+import { getMarketContext } from '../shared/market-generator.js'
 
 // -----------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------
 
-function formatPool(pool: BettingPoolModel, odds?: OddsSnapshotModel | null): string {
+function formatPool(pool: BettingPoolModel, odds?: OddsSnapshotModel | null, marketTitle?: string): string {
   const pot = BigInt(pool.total_pot || 0)
   const onP1 = BigInt(pool.total_on_p1 || 0)
   const onP2 = BigInt(pool.total_on_p2 || 0)
@@ -41,15 +42,15 @@ function formatPool(pool: BettingPoolModel, odds?: OddsSnapshotModel | null): st
   if (odds) {
     const p1 = Number(odds.implied_prob_p1 || 0) / 100
     const p2 = Number(odds.implied_prob_p2 || 0) / 100
-    oddsStr = `P1=${p1.toFixed(1)}% / P2=${p2.toFixed(1)}%`
+    oddsStr = `YES=${p1.toFixed(1)}% / NO=${p2.toFixed(1)}%`
   }
 
   return [
     `Pool #${pool.pool_id}`,
-    `  Game: ${pool.game_world} #${pool.game_id}`,
+    marketTitle ? `  Proposition: ${marketTitle}` : `  Game: ${pool.game_world} #${pool.game_id}`,
     `  Mode: ${mode} | Status: ${pool.status}`,
-    `  Pot: ${pot} | P1: ${onP1} | P2: ${onP2}`,
-    `  Bettors: ${bettors} (P1=${pool.bettor_count_p1}, P2=${pool.bettor_count_p2})`,
+    `  Pot: ${pot} | YES: ${onP1} | NO: ${onP2}`,
+    `  Bettors: ${bettors} (YES=${pool.bettor_count_p1}, NO=${pool.bettor_count_p2})`,
     `  Odds: ${oddsStr}`,
     `  Deadline: ${pool.deadline}`,
   ].join('\n')
@@ -169,17 +170,24 @@ agent.addCapability({
     const odds = pool ? await fetchOddsSnapshot(args.poolId) : null
     const bets = pool ? await fetchBetsForPool(args.poolId) : []
 
+    let marketTitle;
+    if (pool?.game_id && Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
+      const matchId = `NA1_${pool.game_id}`;
+      marketTitle = getMarketContext(matchId)?.market_title;
+    }
+
     const poolContext = pool
-      ? formatPool(pool, odds)
+      ? formatPool(pool, odds, marketTitle)
       : `Pool #${args.poolId} not found.`
 
     const betSummary = bets.length > 0
-      ? bets.slice(0, 10).map(b => `  ${b.bettor.slice(0, 10)}... → ${b.predicted_winner === pool?.player_1 ? 'P1' : 'P2'} (${BigInt(b.amount || 0)})`).join('\n')
+      ? bets.slice(0, 10).map(b => `  ${b.bettor.slice(0, 10)}... → ${b.predicted_winner === pool?.player_1 ? 'YES' : 'NO'} (${BigInt(b.amount || 0)})`).join('\n')
       : '  No bets yet.'
 
     const answer = await this.generate({
-      prompt: `You are the Shobu Trollbox AI — a witty, knowledgeable betting analyst chatting with users watching a live match. Be concise, engaging, and data-driven. Use emoji sparingly.
+      prompt: `You are the Shobu Trollbox AI — a witty, knowledgeable prediction market analyst chatting with users watching a live streamed event. Be concise, engaging, and data-driven. Use emoji sparingly.
 
+Market Proposition: ${marketTitle || "Unknown Event"}
 Pool Data:
 ${poolContext}
 
@@ -188,7 +196,7 @@ ${betSummary}
 
 User says: "${args.message}"
 
-Respond naturally as a chat message (1-3 sentences max). If they ask about odds, reference the real data above.`,
+Respond naturally as a chat message (1-3 sentences max). If they ask about odds or probabilities, reference the exact YES/NO odds data above.`,
       action,
     })
 

@@ -6,15 +6,20 @@ import { TopNavBar } from '@/components/top-nav-bar'
 import { useEgs } from '@/providers/egs-provider'
 import { useStarkSdk } from '@/providers/stark-sdk-provider'
 import { usePrivyStatus } from '@/providers/privy-status-context'
-import { useBettingPool, usePoolOdds } from '@/hooks/use-dojo-betting'
+import { useBettingPool, usePoolOdds, useWeb2BettingPool } from '@/hooks/use-dojo-betting'
 import { usePlaceBet } from '@/hooks/use-betting-actions'
 import { useMatchName } from '@/hooks/use-match-name'
+import { useMarkets } from '@/hooks/use-markets'
 import { formatUnits } from '@/lib/token-utils'
-import { web3Config } from '@/lib/web3-config'
+import { web3Config, getTokenByAddress } from '@/lib/web3-config'
+import type { BettingPoolModel } from '@/hooks/use-dojo-betting'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+import { resolveTokenSymbol, resolveTokenDecimals } from '@/lib/token-formatters'
+
 function formatPot(raw?: string, decimals = 18): string {
   if (!raw || raw === '0') return '0'
   try {
@@ -34,19 +39,28 @@ function MarketCard({
   game,
   isSelected,
   onSelect,
+  getMarket,
 }: {
   game: any
   isSelected: boolean
   onSelect: () => void
+  getMarket: ReturnType<typeof useMarkets>['getMarket']
 }) {
   const poolId = game.pool?.pool_id ? Number(game.pool.pool_id) : 0
+  const tokenSymbol = resolveTokenSymbol(game.pool, null)
+  const tokenDecimals = resolveTokenDecimals(game.pool, null)
   const { matchName } = useMatchName(
     String(poolId),
     String(game.pool?.game_id ?? game.gameId ?? '0'),
     game.pool?.game_world === '0xWeb2' ? 'web2' : 'onchain'
   )
-  const isLive = game.pool && Number(game.pool.deadline) * 1000 > Date.now()
-  const pot = formatPot(game.pool?.total_pot)
+  // Look up LLM-generated market title
+  const rawMatchId = game.pool?.match_id ?? null
+  const market = getMarket(rawMatchId)
+  const deadlineInFuture = game.pool && Number(game.pool.deadline) * 1000 > Date.now()
+  const isOpen = game.pool && Number(game.pool.status ?? -1) === 0
+  const isLive = deadlineInFuture || isOpen
+  const pot = formatPot(game.pool?.total_pot, tokenDecimals)
 
   return (
     <button
@@ -68,8 +82,8 @@ function MarketCard({
           <span className="text-[9px] font-bold text-on-surface-variant shrink-0">Upcoming</span>
         )}
       </div>
-      <div className="text-[11px] font-bold mb-1 text-white truncate">{matchName ?? game.name}</div>
-      <div className="text-[10px] text-on-surface-variant">Pool: {pot} USDC</div>
+      <div className="text-[11px] font-bold mb-1 text-white truncate">{market?.market_title ?? matchName ?? game.name}</div>
+      <div className="text-[10px] text-on-surface-variant">Pool: {pot} {tokenSymbol}</div>
     </button>
   )
 }
@@ -80,14 +94,23 @@ function MarketCard({
 export default function Dashboard() {
   const { games, loading: egsLoading, error: egsError, eventsByWorld } = useEgs()
   const { address: starkAddress, status: starkStatus } = useStarkSdk()
+  const { getMarket } = useMarkets()
 
-  const { authenticated: privyAuthenticated } = usePrivyStatus()
+  const { authenticated: privyAuthenticated, isFreighterConnected } = usePrivyStatus()
+  const isPrivyOrFreighter = privyAuthenticated || isFreighterConnected
 
-  const chainType = starkStatus === 'connected' ? 'starknet' : privyAuthenticated ? 'evm' : null
+  const [privyActiveChain, setPrivyActiveChain] = useState<'evm' | 'stellar'>('stellar')
+  const isStarknetConnected = starkStatus === 'connected'
+  const chainType = isStarknetConnected ? 'starknet' 
+    : isFreighterConnected && !privyAuthenticated ? 'stellar' 
+    : isPrivyOrFreighter ? privyActiveChain : null
   const connectedAddress = starkAddress ?? undefined
 
   // Pool selection state (in-place bet slip)
-  const bettableGames = useMemo(() => games.filter(g => g.bettable), [games])
+  const bettableGames = useMemo(() => games.filter(g => 
+    g.bettable && 
+    (!g.pool || (Number(g.pool.deadline) * 1000 > Date.now() && Number(g.pool.status ?? 0) === 0))
+  ), [games])
   const [selectedPoolId, setSelectedPoolId] = useState<number | null>(null)
 
   // Auto-select first bettable pool if none selected
@@ -100,6 +123,9 @@ export default function Dashboard() {
     String(selectedPool?.game_id ?? '0'),
     'web2'
   )
+  const { data: selectedWeb2Pool } = useWeb2BettingPool(activePoolId)
+  const selectedMarket = getMarket(selectedWeb2Pool?.match_id ?? null)
+  const selectedMarketTitle = selectedMarket?.market_title ?? selectedMatchName
 
   // Bet execution
   const { placeBet, status: betStatus, error: betError } = usePlaceBet()
@@ -122,6 +148,7 @@ export default function Dashboard() {
       amount: wagerAmount,
       tokenAddress: selectedPool.token ?? web3Config.tokens.strk.address,
       chainType,
+      isPlayer1: predictedWinner === 'p1',
     })
   }, [selectedPool, chainType, predictedWinner, activePoolId, wagerAmount, placeBet])
 
@@ -202,7 +229,7 @@ export default function Dashboard() {
                 {selectedWorldEvents.length > 0 ? (
                   selectedWorldEvents.slice(-6).map((evt, i) => (
                     <div key={evt.id} className="flex gap-4" style={{ opacity: 1 - i * 0.12 }}>
-                      <span className="text-on-surface-variant shrink-0">
+                      <span suppressHydrationWarning className="text-on-surface-variant shrink-0">
                         [{new Date(evt.seenAt).toLocaleTimeString('en-GB', { hour12: false })}]
                       </span>
                       <span className="text-neon-purple font-bold">EVENT:</span>
@@ -212,7 +239,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <div className="flex gap-4 text-on-surface-variant">
-                      <span>[{new Date().toLocaleTimeString('en-GB', { hour12: false })}]</span>
+                      <span suppressHydrationWarning>[{new Date().toLocaleTimeString('en-GB', { hour12: false })}]</span>
                       <span className="text-primary font-bold">SYSTEM:</span>
                       <span>Awaiting oracle events... {egsError ? `(${egsError})` : 'Monitoring active pools.'}</span>
                     </div>
@@ -251,6 +278,7 @@ export default function Dashboard() {
                       game={game}
                       isSelected={Number(game.pool?.pool_id) === activePoolId}
                       onSelect={() => setSelectedPoolId(Number(game.pool?.pool_id))}
+                      getMarket={getMarket}
                     />
                   ))}
                 </div>
@@ -273,10 +301,10 @@ export default function Dashboard() {
                     <div className="space-y-2"><SkeletonLine className="h-4 w-40" /><SkeletonLine className="h-3 w-full" /></div>
                   ) : selectedPool ? (
                     <>
-                      <div className="text-xs font-bold mb-1 text-white">{selectedMatchName ?? `Pool #${activePoolId}`}</div>
+                      <div className="text-xs font-bold mb-1 text-white">{selectedMarketTitle ?? `Pool #${activePoolId}`}</div>
                       <p className="text-[10px] text-on-surface-variant leading-relaxed mb-4">
-                        P1 Win Probability: {(odds.impliedP1 / 100).toFixed(1)}% · P2: {(odds.impliedP2 / 100).toFixed(1)}%
-                        {selectedPool.total_pot && ` · Pool: ${formatPot(selectedPool.total_pot)} USDC`}
+                        YES Probability: {(odds.impliedP1 / 100).toFixed(1)}% · NO: {(odds.impliedP2 / 100).toFixed(1)}%
+                        {selectedPool.total_pot && ` · Pool: ${formatPot(selectedPool.total_pot, resolveTokenDecimals(selectedPool, chainType))} ${resolveTokenSymbol(selectedPool, chainType)}`}
                       </p>
                     </>
                   ) : (
@@ -302,8 +330,24 @@ export default function Dashboard() {
             <div className="p-6 flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-white">Bet Slip</h2>
-                <span className="text-[10px] text-on-surface-variant">
-                  {chainType === 'starknet' ? '⚡ Starknet' : chainType === 'evm' ? '🔵 Beam Network' : 'Multi-Chain Enabled'}
+                <span className="text-[10px] text-on-surface-variant flex items-center gap-2">
+                  {isStarknetConnected && '⚡ Starknet'}
+                  {isPrivyOrFreighter && !isStarknetConnected && (
+                    <div className="flex items-center bg-surface-container-high rounded p-0.5">
+                      <button 
+                        onClick={() => setPrivyActiveChain('evm')}
+                        className={`px-2 py-1 rounded transition-all ${privyActiveChain === 'evm' ? 'bg-primary text-white font-bold' : 'text-on-surface-variant hover:text-white'}`}
+                      >
+                        🔵 Beam
+                      </button>
+                      <button 
+                        onClick={() => setPrivyActiveChain('stellar')}
+                        className={`px-2 py-1 rounded transition-all ${privyActiveChain === 'stellar' ? 'bg-blue-500 text-white font-bold' : 'text-on-surface-variant hover:text-white'}`}
+                      >
+                        🌌 Soroban
+                      </button>
+                    </div>
+                  )}
                 </span>
               </div>
               
@@ -324,7 +368,7 @@ export default function Dashboard() {
                         predictedWinner === 'p1' ? 'bg-surface-container-highest text-white' : 'text-on-surface-variant hover:bg-surface-container-high'
                       }`}
                     >
-                      P1 <span className="text-primary ml-2">{odds.p1 > 0 ? `${odds.p1.toFixed(2)}x` : '—'}</span>
+                      P1 YES <span className="text-emerald-400 ml-2">{odds.p1 > 0 ? `${odds.p1.toFixed(2)}x` : '—'}</span>
                     </button>
                     <button
                       onClick={() => setPredictedWinner('p2')}
@@ -332,7 +376,7 @@ export default function Dashboard() {
                         predictedWinner === 'p2' ? 'bg-surface-container-highest text-white' : 'text-on-surface-variant hover:bg-surface-container-high'
                       }`}
                     >
-                      P2 <span className="text-on-surface-variant ml-2">{odds.p2 > 0 ? `${odds.p2.toFixed(2)}x` : '—'}</span>
+                      P2 NO <span className="text-red-400 ml-2">{odds.p2 > 0 ? `${odds.p2.toFixed(2)}x` : '—'}</span>
                     </button>
                   </div>
                   
@@ -347,7 +391,7 @@ export default function Dashboard() {
                         value={wagerAmount}
                         onChange={e => setWagerAmount(e.target.value)}
                       />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary">USDC</span>
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-primary">{resolveTokenSymbol(selectedPool, chainType)}</span>
                     </div>
                   </div>
                   
@@ -355,11 +399,17 @@ export default function Dashboard() {
                   <div className="space-y-2 py-4 border-y border-surface-container-low">
                     <div className="flex justify-between text-[10px]">
                       <span className="text-on-surface-variant">Est. Payout</span>
-                      <span className="font-bold text-white">{potentialReturn} USDC</span>
+                      <span className="font-bold text-white">{potentialReturn} {resolveTokenSymbol(selectedPool, chainType)}</span>
                     </div>
-                    <div className="flex justify-between text-[10px]">
+                    <div className="flex justify-between items-center text-[10px]">
                       <span className="text-on-surface-variant">Network</span>
-                      <span className="font-bold text-white">{chainType === 'starknet' ? 'Starknet Sepolia' : 'Beam Testnet'}</span>
+                      {isStarknetConnected ? (
+                        <span className="font-bold text-white">Starknet Sepolia</span>
+                      ) : isPrivyOrFreighter ? (
+                        <span className="font-bold text-white">{privyActiveChain === 'evm' ? 'Beam Testnet' : 'Soroban Testnet'}</span>
+                      ) : (
+                        <span className="font-bold text-gray-500">—</span>
+                      )}
                     </div>
                   </div>
                   
@@ -421,7 +471,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex justify-between items-end w-full">
                     <h2 className="font-headline font-bold text-2xl tracking-tight text-white drop-shadow-md">
-                      {selectedMatchName ?? 'Select Market'}
+                      {selectedMarketTitle ?? 'Select Market'}
                     </h2>
                     <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded border border-white/5">
                       <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
@@ -447,7 +497,7 @@ export default function Dashboard() {
                 {selectedWorldEvents.length > 0 ? (
                   selectedWorldEvents.slice(-3).map((evt, i) => (
                     <div key={evt.id} className="flex items-start" style={{ opacity: 1 - i * 0.2 }}>
-                      <span className="text-primary/60 shrink-0 mr-3 w-16">[{new Date(evt.seenAt).toLocaleTimeString('en-GB', { hour12: false }).slice(0, 8)}]</span>
+                      <span suppressHydrationWarning className="text-primary/60 shrink-0 mr-3 w-16">[{new Date(evt.seenAt).toLocaleTimeString('en-GB', { hour12: false }).slice(0, 8)}]</span>
                       <span className="text-on-surface uppercase leading-relaxed">Block #{evt.blockNumber} event detected</span>
                     </div>
                   ))
@@ -469,7 +519,7 @@ export default function Dashboard() {
                   </h3>
                   <p className="text-3xl font-headline font-bold text-white tracking-tighter mt-2">
                     {odds.impliedP1 > 0 ? `${(odds.impliedP1 / 100).toFixed(1)}%` : '—'}
-                    <span className="text-sm font-light text-primary/60 ml-1">P1</span>
+                    <span className="text-sm font-light text-emerald-400/80 ml-1">YES</span>
                   </p>
                 </div>
                 {odds.impliedP1 > 0 && (
@@ -495,9 +545,16 @@ export default function Dashboard() {
                 <h3 className="font-headline text-[10px] font-bold text-white uppercase tracking-[0.3em] flex items-center gap-2">
                   <Coins className="w-4 h-4 text-primary" /> Execution Terminal
                 </h3>
-                <span className="text-[9px] text-[#cfc2d7] uppercase tracking-widest font-mono bg-[#353534] px-2 py-1">
-                  {chainType === 'starknet' ? 'Starknet' : chainType === 'evm' ? 'Beam Network' : 'No Wallet'}
-                </span>
+                {isPrivyOrFreighter && !isStarknetConnected ? (
+                  <div className="flex items-center bg-[#353534] p-0.5 mt-[-2px]">
+                    <button onClick={() => setPrivyActiveChain('evm')} className={`text-[9px] uppercase tracking-widest font-mono px-2 py-1 ${privyActiveChain === 'evm' ? 'bg-primary text-white font-bold' : 'text-[#cfc2d7]'}`}>Beam</button>
+                    <button onClick={() => setPrivyActiveChain('stellar')} className={`text-[9px] uppercase tracking-widest font-mono px-2 py-1 ${privyActiveChain === 'stellar' ? 'bg-blue-500 text-white font-bold' : 'text-[#cfc2d7]'}`}>Soroban</button>
+                  </div>
+                ) : (
+                  <span className="text-[9px] text-[#cfc2d7] uppercase tracking-widest font-mono bg-[#353534] px-2 py-1">
+                    {isStarknetConnected ? 'Starknet' : 'No Wallet'}
+                  </span>
+                )}
               </div>
 
               {!chainType ? (
@@ -514,9 +571,9 @@ export default function Dashboard() {
                         predictedWinner === 'p1' ? 'border-l-[3px] border-primary bg-surface-container-highest' : 'bg-surface-container-lowest/50 border-l-[3px] border-transparent'
                       }`}
                     >
-                      <span className="text-[9px] font-mono text-gray-400 uppercase block mb-1">Outcome A</span>
-                      <span className="text-xl font-headline font-bold text-white block mb-1">Player 1</span>
-                      <span className="text-xs font-mono text-primary font-semibold">{odds.p1 > 0 ? `${odds.p1.toFixed(2)}x` : '—'}</span>
+                      <span className="text-[9px] font-mono text-emerald-400/80 uppercase block mb-1">Yes</span>
+                      <span className="text-xl font-headline font-bold text-emerald-400 block mb-1">YES</span>
+                      <span className="text-xs font-mono text-emerald-400 font-semibold">{odds.p1 > 0 ? `${odds.p1.toFixed(2)}x` : '—'}</span>
                       {predictedWinner === 'p1' && <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_5px_#8a2be2]"></div>}
                     </button>
                     <button
@@ -525,15 +582,15 @@ export default function Dashboard() {
                         predictedWinner === 'p2' ? 'border-l-[3px] border-primary bg-surface-container-highest' : 'bg-surface-container-lowest/50 border-l-[3px] border-transparent'
                       }`}
                     >
-                      <span className="text-[9px] font-mono text-gray-500 uppercase block mb-1">Outcome B</span>
-                      <span className="text-xl font-headline font-bold text-[#cfc2d7]">Player 2</span>
-                      <span className="block text-xs font-mono text-gray-500">{odds.p2 > 0 ? `${odds.p2.toFixed(2)}x` : '—'}</span>
+                      <span className="text-[9px] font-mono text-red-400/80 uppercase block mb-1">No</span>
+                      <span className="text-xl font-headline font-bold text-red-400">NO</span>
+                      <span className="block text-xs font-mono text-red-400">{odds.p2 > 0 ? `${odds.p2.toFixed(2)}x` : '—'}</span>
                     </button>
                   </div>
 
                   <div className="space-y-5">
                     <div className="relative">
-                      <label className="text-[9px] font-mono text-primary/60 uppercase absolute top-2.5 left-4 z-10 font-bold tracking-widest">Wager Amount (USDC)</label>
+                      <label className="text-[9px] font-mono text-primary/60 uppercase absolute top-2.5 left-4 z-10 font-bold tracking-widest">Wager Amount ({resolveTokenSymbol(selectedPool, chainType)})</label>
                       <input
                         className="w-full bg-[#0e0e0e] border-0 border-b-2 border-outline-variant pt-8 pb-3 px-4 font-mono text-xl text-white focus:ring-0 focus:border-primary transition-colors outline-none"
                         type="text"
@@ -543,7 +600,7 @@ export default function Dashboard() {
                     </div>
                     <div className="flex justify-between items-center py-2 px-1 border-b border-white/5">
                       <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Potential Return</span>
-                      <span className="text-[11px] font-mono font-bold text-emerald-400">{potentialReturn} USDC</span>
+                      <span className="text-[11px] font-mono font-bold text-emerald-400">{potentialReturn} {resolveTokenSymbol(selectedPool, chainType)}</span>
                     </div>
                     <button
                       onClick={handleExecuteBet}

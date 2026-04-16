@@ -5,6 +5,7 @@ import { useStarkSdk } from "@/providers/stark-sdk-provider";
 import { usePrivyStatus } from "@/providers/privy-status-context";
 import { parseUnits } from "@/lib/token-utils";
 import { normalizeAddress, web3Config, getTokenByAddress } from "@/lib/web3-config";
+import { useSignRawHash } from "@privy-io/react-auth/extended-chains";
 
 type ExecuteStatus = "idle" | "submitting" | "error" | "success";
 type ChainType = "starknet" | "evm" | "stellar";
@@ -18,10 +19,8 @@ const BEAM_ESCROW_ADDRESS = "0xa7C48fA122879C8EBC0e3e80f60995AEB7Fe19e7" as cons
 // ─── Place Bet (Dual-Chain) ─────────────────────────────────────────────
 export function usePlaceBet() {
   const { wallet: starkWallet } = useStarkSdk();
-  const { wallets: privyWallets } = usePrivyStatus();
-  // Assume usePrivy() provides raw signing for Stellar/Ed25519 (Privy Tier 2 Support)
-  // In a real integration, this might be usePrivy(), useSolanaWallets(), etc.
-  // The user requested we use `useSignRawHash` feature
+  const { wallets: privyWallets, stellarAddress, stellarKit } = usePrivyStatus();
+  const { signRawHash } = useSignRawHash();
   const [status, setStatus] = useState<ExecuteStatus>("idle");
   const [error, setError] = useState<string | undefined>(undefined);
 
@@ -32,26 +31,45 @@ export function usePlaceBet() {
       amount: string;
       tokenAddress: string;
       chainType: ChainType;
+      isPlayer1?: boolean;
     }) => {
       setStatus("submitting");
       setError(undefined);
 
       try {
         if (params.chainType === "stellar") {
-          // ── Stellar Path: @stellar/stellar-sdk + Privy rawSign ──
-          const privyWallet = privyWallets?.[0]; // Get the Privy embedded wallet reference
-          if (!privyWallet) throw new Error("No Privy wallet connected for Stellar.");
+          // ── Stellar Path: Freighter + Soroban ──
+          if (!stellarAddress) throw new Error("No Stellar wallet connected. Connect Freighter first.");
           
           const { TransactionBuilder, Contract, xdr, Address, Networks, rpc } = await import("@stellar/stellar-sdk");
-          const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org"); // Testnet as default
+          const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
           
-          // Assuming user config holds stellar escrow address
-          const contractId = web3Config.stellarEscrowAddress || "CBAR_PLACEHOLDER_ESCROW";
+          const contractId = web3Config.stellarEscrowAddress || "CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M";
           
-          const accountInfo = await rpcServer.getAccount(privyWallet.address); // Implicitly mapped if possible
+          const accountInfo = await rpcServer.getAccount(stellarAddress);
           const contract = new Contract(contractId);
           
           const amountValue = parseUnits(params.amount, 7); // Soroban/Stellar tokens usually 7 decimals
+
+          // ── Resolve the Stellar pool ID from the off-chain mapping ──
+          const { fetchStellarPoolMap, getStellarPool } = await import("@/lib/stellar-pool-reader");
+          const poolMap = await fetchStellarPoolMap();
+          const stellarPoolId = poolMap[String(params.poolId)];
+          if (stellarPoolId == null) {
+            throw new Error(`This market is not available on Stellar (no pool mapping for Starknet pool #${params.poolId})`);
+          }
+
+          // ── Read the actual player addresses from the Soroban contract ──
+          const poolData = await getStellarPool(contractId, stellarPoolId);
+          if (!poolData) {
+            throw new Error(`Could not read Stellar pool #${stellarPoolId} from contract`);
+          }
+          if (poolData.status !== 0) {
+            throw new Error(`Stellar pool #${stellarPoolId} is not open (status: ${poolData.status})`);
+          }
+
+          // Map YES/NO to actual on-chain player addresses
+          const mappedWinner = params.isPlayer1 ? poolData.player1 : (params.isPlayer1 === false ? poolData.player2 : params.predictedWinner);
 
           const tx = new TransactionBuilder(accountInfo, {
             fee: "10000",
@@ -59,31 +77,54 @@ export function usePlaceBet() {
           })
             .addOperation(
               contract.call("place_bet",
-                xdr.ScVal.scvU32(params.poolId),
-                new Address(privyWallet.address).toScVal(), // Bettor
-                new Address(params.predictedWinner).toScVal(), // Predicted winner
+                xdr.ScVal.scvU32(stellarPoolId),
+                new Address(stellarAddress).toScVal(),
+                new Address(mappedWinner).toScVal(),
                 xdr.ScVal.scvU128(new xdr.UInt128Parts({ hi: xdr.Uint64.fromString("0"), lo: xdr.Uint64.fromString(amountValue.toString()) }))
               )
             )
             .setTimeout(30)
             .build();
 
-          // Pass the transaction hash to Privy for Ed25519 blind signing
-          const txHash = tx.hash().toString("hex");
-          
-          // Privy's Tier 2 Raw Sign flow explicitly requested by user:
-          const signature = await privyWallet.sign(txHash); 
-          
-          tx.addSignature(privyWallet.address, signature);
+          // Simulate first to get clear diagnostics
+          let preparedTx;
+          try {
+            preparedTx = await rpcServer.prepareTransaction(tx);
+          } catch (simErr: any) {
+            const msg = simErr?.message || simErr?.toString() || "Unknown simulation error";
+            throw new Error(`Soroban simulation failed: ${msg}`);
+          }
 
-          const response = await rpcServer.sendTransaction(tx);
+          // Sign using Wallet Kit
+          if (!stellarKit) throw new Error("Stellar Wallet Kit not initialized");
+          const { signedTxXdr } = await stellarKit.signTransaction(preparedTx.toXDR(), {
+            networkPassphrase: Networks.TESTNET,
+            address: stellarAddress,
+          });
+
+          if (!signedTxXdr) {
+             throw new Error("Failed to sign transaction with Wallet Kit");
+          }
+
+          const signedTx = TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
+          const response = await rpcServer.sendTransaction(signedTx as any);
           if (response.status === "ERROR") {
-            throw new Error(`Soroban Tx Failed: ${response.errorResult}`);
+            const errDetail = response.errorResult ? JSON.stringify(response.errorResult, null, 2) : 'Unknown error';
+            throw new Error(`Soroban Tx Failed: ${errDetail}`);
           }
           /** 
            * IMPORTANT: Wait for Soroban network propagation.
-           * In production, use getTransactionStatus here iteratively a few times.
            */
+          let txStatus = await rpcServer.getTransaction(response.hash);
+          let attempts = 0;
+          while (txStatus.status === "NOT_FOUND" && attempts < 15) {
+            await new Promise(r => setTimeout(r, 2000));
+            txStatus = await rpcServer.getTransaction(response.hash);
+            attempts++;
+          }
+          if (txStatus.status === "FAILED") {
+            throw new Error(`Soroban Tx Failed during block execution`);
+          }
         } else if (params.chainType === "evm") {
           // ── EVM Path: Use Privy embedded wallet → viem → Beam Escrow ──
           const evmWallet = privyWallets?.[0];
@@ -193,7 +234,8 @@ export function usePlaceBet() {
 // ─── Claim Winnings (Dual-Chain) ────────────────────────────────────────
 export function useClaimWinnings() {
   const { wallet: starkWallet } = useStarkSdk();
-  const { wallets: privyWallets } = usePrivyStatus();
+  const { wallets: privyWallets, stellarAddress, stellarKit } = usePrivyStatus();
+  const { signRawHash } = useSignRawHash();
   const [status, setStatus] = useState<ExecuteStatus>("idle");
   const [error, setError] = useState<string | undefined>(undefined);
 
@@ -213,15 +255,14 @@ export function useClaimWinnings() {
       try {
         if (chainType === "stellar") {
           // ── Stellar Path: @stellar/stellar-sdk + Privy rawSign ──
-          const privyWallet = privyWallets?.[0]; 
-          if (!privyWallet) throw new Error("No Privy wallet connected for Stellar.");
+          if (!stellarAddress) throw new Error("No Stellar wallet connected. Connect Freighter first.");
 
           const { TransactionBuilder, Contract, xdr, Address, Networks, rpc } = await import("@stellar/stellar-sdk");
           const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
           
-          const contractId = web3Config.stellarEscrowAddress || "CBAR_PLACEHOLDER_ESCROW";
+          const contractId = web3Config.stellarEscrowAddress || "CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M";
           const contract = new Contract(contractId);
-          const accountInfo = await rpcServer.getAccount(privyWallet.address);
+          const accountInfo = await rpcServer.getAccount(stellarAddress);
 
           const tx = new TransactionBuilder(accountInfo, {
             fee: "10000",
@@ -230,19 +271,41 @@ export function useClaimWinnings() {
             .addOperation(
               contract.call("claim_winnings",
                 xdr.ScVal.scvU32(poolId),
-                new Address(privyWallet.address).toScVal() // Bettor claiming
+                new Address(stellarAddress).toScVal() // Bettor
               )
             )
             .setTimeout(30)
             .build();
 
-          const txHash = tx.hash().toString("hex");
-          const signature = await privyWallet.sign(txHash);
-          tx.addSignature(privyWallet.address, signature);
+          // Soroban transactions require simulation to calculate fees and footprints
+          const preparedTx = await rpcServer.prepareTransaction(tx);
 
-          const response = await rpcServer.sendTransaction(tx);
+          // Sign using Wallet Kit
+          if (!stellarKit) throw new Error("Stellar Wallet Kit not initialized");
+          const { signedTxXdr } = await stellarKit.signTransaction(preparedTx.toXDR(), {
+            networkPassphrase: Networks.TESTNET,
+            address: stellarAddress,
+          });
+
+          if (!signedTxXdr) {
+             throw new Error("Failed to sign transaction with Wallet Kit");
+          }
+
+          const signedTx = TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
+          const response = await rpcServer.sendTransaction(signedTx as any);
           if (response.status === "ERROR") {
             throw new Error(`Soroban Tx Failed: ${response.errorResult}`);
+          }
+          
+          let txStatus = await rpcServer.getTransaction(response.hash);
+          let attempts = 0;
+          while (txStatus.status === "NOT_FOUND" && attempts < 15) {
+            await new Promise(r => setTimeout(r, 2000));
+            txStatus = await rpcServer.getTransaction(response.hash);
+            attempts++;
+          }
+          if (txStatus.status === "FAILED") {
+            throw new Error(`Soroban Tx Failed during block execution`);
           }
         } else if (chainType === "evm") {
           // ── EVM Path: Privy wallet → viem → Beam Escrow ──

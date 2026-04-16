@@ -74,11 +74,7 @@ impl EscrowContract {
         deadline: u64,
     ) -> u32 {
         let manager: Address = env.storage().instance().get(&DataKey::Manager).unwrap();
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
-        // Allow manager or admin
-        if !manager.require_auth().is_ok() {
-            admin.require_auth();
-        }
+        manager.require_auth();
 
         let mut pool_counter: u32 = env.storage().instance().get(&DataKey::PoolCounter).unwrap();
         pool_counter += 1;
@@ -160,12 +156,7 @@ impl EscrowContract {
 
     pub fn settle_pool(env: Env, pool_id: u32, winner: Address) {
         let manager: Address = env.storage().instance().get(&DataKey::Manager).unwrap();
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
-        
-        // Either manager or admin can settle
-        if !manager.require_auth().is_ok() {
-            admin.require_auth();
-        }
+        manager.require_auth();
 
         let pool_key = DataKey::Pool(pool_id);
         let mut pool: BettingPool = env.storage().instance().get(&pool_key).unwrap();

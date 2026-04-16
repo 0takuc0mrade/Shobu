@@ -307,3 +307,15 @@ export async function subscribeToPoolChanges(
 // -----------------------------------------------------------------------
 
 export { graphqlQuery }
+
+/**
+ * Fetch the current pool counter (latest pool_id) by scanning all pools.
+ * Used after pool creation to map Starknet → Stellar pool IDs.
+ */
+export async function fetchLatestPoolId(): Promise<number> {
+  const pools = await fetchAllPools()
+  if (pools.length === 0) return 0
+  return Math.max(...pools.map(p => p.pool_id))
+}
+
+

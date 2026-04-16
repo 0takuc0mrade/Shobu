@@ -45,6 +45,7 @@ const envSchema = z.object({
   BUDOKAN_ADDRESS: z.string().default('0x0'),
   ESCROW_ADDRESS: z.string().min(1, 'ESCROW_ADDRESS is required'),
   BEAM_ESCROW_ADDRESS: z.string().optional(),
+  STELLAR_PRIVATE_KEY: z.string().optional(),
 
   // Pistols at 10 Blocks (FOCG)
   PISTOLS_TORII_URL: z

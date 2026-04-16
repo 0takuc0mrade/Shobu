@@ -3,6 +3,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  transpilePackages: ['@initia/utils', '@initia/interwovenkit-react'],
   images: {
     unoptimized: true,
   },

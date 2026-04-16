@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { Suspense, useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TopNavBar } from '@/components/top-nav-bar'
 import { Activity, Radio, Coins, TrendingUp, LineChart, Wallet, Loader2 } from 'lucide-react'
-import { useBettingPool, usePoolOdds } from '@/hooks/use-dojo-betting'
+import { useBettingPool, usePoolOdds, useWeb2BettingPool } from '@/hooks/use-dojo-betting'
 import { usePlaceBet } from '@/hooks/use-betting-actions'
 import { useMatchName } from '@/hooks/use-match-name'
+import { useMarkets } from '@/hooks/use-markets'
 import { useStarkSdk } from '@/providers/stark-sdk-provider'
 import { usePrivyStatus } from '@/providers/privy-status-context'
 import { useEgs } from '@/providers/egs-provider'
@@ -22,7 +23,7 @@ function SkeletonLine({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse bg-surface-container-highest/60 ${className}`} />
 }
 
-export default function MatchPage() {
+function MatchPageContent() {
   const searchParams = useSearchParams()
   const poolIdParam = searchParams.get('pool')
   const poolId = poolIdParam ? Number(poolIdParam) : web3Config.activePoolId
@@ -30,12 +31,19 @@ export default function MatchPage() {
   const { data: pool, loading: poolLoading } = useBettingPool(poolId)
   const odds = usePoolOdds(poolId)
   const { matchName } = useMatchName(String(poolId), String(pool?.game_id ?? '0'), 'web2')
+  const { data: web2Pool } = useWeb2BettingPool(poolId)
+  const { getMarket } = useMarkets()
+
+  // Decode the match_id from the Web2 pool to look up the market context
+  const rawMatchId = web2Pool?.match_id
+  const market = getMarket(rawMatchId ?? null)
+  const marketTitle = market?.market_title ?? null
   const { eventsByWorld } = useEgs()
   const { status: starkStatus } = useStarkSdk()
 
-  const { authenticated: privyAuthenticated } = usePrivyStatus()
+  const { authenticated: privyAuthenticated, isFreighterConnected } = usePrivyStatus()
 
-  const chainType = starkStatus === 'connected' ? 'starknet' : privyAuthenticated ? 'evm' : null
+  const chainType = starkStatus === 'connected' ? 'starknet' : isFreighterConnected ? 'stellar' : privyAuthenticated ? 'evm' : null
 
   const { placeBet, status: betStatus, error: betError } = usePlaceBet()
   const [wagerAmount, setWagerAmount] = useState('500.00')
@@ -57,14 +65,15 @@ export default function MatchPage() {
       amount: wagerAmount,
       tokenAddress: pool.token ?? web3Config.tokens.strk.address,
       chainType,
+      isPlayer1: predictedWinner === 'p1',
     })
   }, [pool, chainType, predictedWinner, poolId, wagerAmount, placeBet])
 
   const worldEvents = pool?.game_world ? (eventsByWorld[pool.game_world.toLowerCase()] ?? []) : []
 
-  // Resolve player labels
-  const p1Label = matchName?.split(' vs ')?.[0] ?? 'Player 1'
-  const p2Label = matchName?.split(' vs ')?.[1] ?? 'Player 2'
+  // Binary market labels: YES / NO
+  const p1Label = 'YES'
+  const p2Label = 'NO'
 
   return (
     <div className="flex flex-col min-h-screen bg-surface text-foreground font-sans w-full">
@@ -80,7 +89,7 @@ export default function MatchPage() {
                 <div className="flex justify-between items-start w-full">
                   <span className="bg-primary-container text-on-primary-container text-[9px] md:text-[10px] font-bold px-2 py-1 tracking-widest uppercase flex items-center gap-1.5 shadow-[0_0_10px_rgba(138,43,226,0.3)]">
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                    {pool?.status === 'Open' || pool?.status === '0' ? 'LIVE MARKET' : 'MARKET'}
+                    {pool?.status === 'Open' || pool?.status === '0' ? 'LIVE MARKET' : 'RESOLVED'}
                   </span>
                   <div className="bg-black/50 backdrop-blur-md px-2 py-1 text-[9px] md:text-[10px] font-mono text-white border border-white/10 rounded-sm">
                     POOL #{poolId}
@@ -91,8 +100,8 @@ export default function MatchPage() {
                     {poolLoading ? (
                       <SkeletonLine className="h-8 w-48 mb-2" />
                     ) : (
-                      <h2 className="font-headline font-bold text-2xl md:text-3xl tracking-tight text-white drop-shadow-md">
-                        {p1Label} <span className="text-primary/70 text-lg md:text-xl px-1">VS</span> {p2Label}
+                      <h2 className="font-headline font-bold text-xl md:text-2xl tracking-tight text-white drop-shadow-md leading-snug">
+                        {marketTitle ?? matchName ?? `Pool #${poolId}`}
                       </h2>
                     )}
                   </div>
@@ -141,11 +150,11 @@ export default function MatchPage() {
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h3 className="font-headline text-[10px] md:text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5" /> Win Probability
+                  <TrendingUp className="w-3.5 h-3.5" /> YES Probability
                 </h3>
                 <p className="text-3xl md:text-4xl font-headline font-bold text-white tracking-tighter mt-2">
                   {odds.impliedP1 > 0 ? `${(odds.impliedP1 / 100).toFixed(1)}%` : '—'}
-                  <span className="text-sm font-light text-primary/60 ml-1">{p1Label}</span>
+                  <span className="text-sm font-light text-emerald-400/80 ml-1">YES</span>
                 </p>
               </div>
               {odds.p1 > 0 && (
@@ -193,9 +202,9 @@ export default function MatchPage() {
                       predictedWinner === 'p1' ? 'border-l-[3px] border-primary bg-surface-container-highest' : 'bg-surface-container-lowest/50 border-l-[3px] border-transparent'
                     }`}
                   >
-                    <span className="text-[9px] md:text-[10px] font-mono text-gray-400 uppercase block mb-1">Outcome A</span>
-                    <span className="text-xl md:text-2xl font-headline font-bold text-white block mb-1">{p1Label}</span>
-                    <span className="text-xs font-mono text-primary font-semibold">{odds.p1 > 0 ? `${odds.p1.toFixed(2)}x` : '—'}</span>
+                    <span className="text-[9px] md:text-[10px] font-mono text-emerald-400/80 uppercase block mb-1">Yes</span>
+                    <span className="text-xl md:text-2xl font-headline font-bold text-emerald-400 block mb-1">YES</span>
+                    <span className="text-xs font-mono text-emerald-400 font-semibold">{odds.p1 > 0 ? `${odds.p1.toFixed(2)}x` : '—'}</span>
                     {predictedWinner === 'p1' && <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_5px_#8a2be2]"></div>}
                   </button>
                   <button
@@ -204,9 +213,9 @@ export default function MatchPage() {
                       predictedWinner === 'p2' ? 'border-l-[3px] border-primary bg-surface-container-highest' : 'bg-surface-container-lowest/50 border-l-[3px] border-transparent'
                     }`}
                   >
-                    <span className="text-[9px] md:text-[10px] font-mono text-gray-500 uppercase block mb-1">Outcome B</span>
-                    <span className="text-xl md:text-2xl font-headline font-bold text-[#cfc2d7]">{p2Label}</span>
-                    <span className="block text-xs font-mono text-gray-500">{odds.p2 > 0 ? `${odds.p2.toFixed(2)}x` : '—'}</span>
+                    <span className="text-[9px] md:text-[10px] font-mono text-red-400/80 uppercase block mb-1">No</span>
+                    <span className="text-xl md:text-2xl font-headline font-bold text-red-400">NO</span>
+                    <span className="block text-xs font-mono text-red-400">{odds.p2 > 0 ? `${odds.p2.toFixed(2)}x` : '—'}</span>
                   </button>
                 </div>
 
@@ -256,5 +265,13 @@ export default function MatchPage() {
         </a>
       </nav>
     </div>
+  )
+}
+
+export default function MatchPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-surface text-foreground"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+      <MatchPageContent />
+    </Suspense>
   )
 }

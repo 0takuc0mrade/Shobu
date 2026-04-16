@@ -737,7 +737,6 @@ pub mod Escrow {
 
             assert!(match_id == web2_pool.match_id, "Match ID mismatch");
             assert!(provider_id == web2_pool.game_provider_id, "Provider mismatch");
-            assert!(web2_pool.game_provider_id == RIOT_LOL_PROVIDER_ID, "Unsupported provider");
 
             let web2_config: Web2OracleConfig = world.read_model(WEB2_ORACLE_CONFIG_ID);
             assert!(web2_config.enabled, "Web2 oracle not configured");
@@ -1173,7 +1172,6 @@ pub mod Escrow {
             assert!(match_id != 0, "Invalid match_id");
             assert!(player_1_tag != 0 && player_2_tag != 0, "Invalid player tags");
             assert!(player_1_tag != player_2_tag, "Player tags must be different");
-            assert!(game_provider_id == RIOT_LOL_PROVIDER_ID, "Unsupported provider");
 
             // Allocate pool ID
             let mut counter: PoolCounter = world.read_model(POOL_COUNTER_ID);

@@ -14,10 +14,17 @@ export type PrivyStatus = {
   ready: boolean;
   authenticated: boolean;
   evmAddress?: string;
+  stellarAddress?: string;
   /** Raw Privy wallet objects — used by betting actions for EVM tx execution */
   wallets: any[];
   login: () => void;
   logout: () => Promise<void>;
+  
+  // Freighter additions
+  connectFreighter: () => Promise<void>;
+  disconnectFreighter: () => void;
+  isFreighterConnected: boolean;
+  stellarKit?: any;
 };
 
 const defaultStatus: PrivyStatus = {
@@ -26,6 +33,10 @@ const defaultStatus: PrivyStatus = {
   wallets: [],
   login: () => {},
   logout: async () => {},
+  connectFreighter: async () => {},
+  disconnectFreighter: () => {},
+  isFreighterConnected: false,
+  stellarKit: null,
 };
 
 export const PrivyStatusContext = createContext<PrivyStatus>(defaultStatus);

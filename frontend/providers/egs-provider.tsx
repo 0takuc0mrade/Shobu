@@ -59,6 +59,14 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
       } catch { return hex }
     }
 
+    // A pool is "open" if its on-chain status is 0 (Open).
+    // Previously we only checked deadline, but pools can be past deadline
+    // yet still unsettled (status=0) and therefore still active on-chain.
+    const isPoolOpen = (p: typeof pools[0]) => {
+      const status = Number(p.status ?? -1);
+      return status === 0;
+    };
+
     // 1. Map existing Denshokan games
     const mapped = games.map((game) => {
       // Sort pools descending to get the newest duplicate pool if available
@@ -71,7 +79,7 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
             sameAddress(candidate.game_world, game.worldAddress) &&
             Number.isFinite(poolGameId) &&
             poolGameId === game.gameId &&
-            Number(candidate.deadline) * 1000 > Date.now()
+            isPoolOpen(candidate)
           );
         }) ?? null;
       return {
@@ -90,16 +98,17 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
     
     for (const p of sortedUnknownPools) {
       if (!p.game_world || !p.game_id) continue;
-      // Skip if deadline passed
-      if (Number(p.deadline) * 1000 <= Date.now()) continue;
+      // Skip if pool is not open on-chain
+      if (!isPoolOpen(p)) continue;
+      // Skip pools with game_world 0x0 — these are Web2 pools handled in step 3
+      if (p.game_world === '0x0' || p.game_world === '0') continue;
       // Skip if already appended
       if (mapped.some(g => sameAddress(g.worldAddress, p.game_world as string) && g.gameId === Number(p.game_id))) continue;
+      // Skip if it corresponds to a web2 pool
+      if (web2Pools.some(w => String(w.pool_id) === String(p.pool_id))) continue;
       
       const isPistols = p.game_world.toLowerCase() === "0x1350566404cc897e53c6562bcdeeed5dd6aa000d6973664747873e44c2e572d".toLowerCase();
-      // Wait, Web2 pools might have game_world as ESCROW or 0x0. Let's make sure we don't accidentally add Web2 pools under generic unknown.
-      // But we will add them specifically in step 3. Let's just avoid if it corresponds to a web2 pool.
-      if (web2Pools.some(w => w.pool_id === p.pool_id)) continue;
-      
+
       mapped.push({
         id: `fallback-${p.game_world}-${p.game_id}`,
         gameId: Number(p.game_id),
@@ -116,9 +125,10 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
     
     for (const w of sortedWeb2Pools) {
       // Find the base pool object to get total_pot and deadline
-      const basePool = pools.find(p => p.pool_id === w.pool_id);
+      const basePool = pools.find(p => String(p.pool_id) === String(w.pool_id));
       if (!basePool) continue;
-      if (Number(basePool.deadline) * 1000 <= Date.now()) continue;
+      // Skip if pool is not open on-chain
+      if (!isPoolOpen(basePool)) continue;
 
       const p1 = decodeHexStr(w.player_1_tag).split('#')[0] || 'Player 1';
       const p2 = decodeHexStr(w.player_2_tag).split('#')[0] || 'Player 2';

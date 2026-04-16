@@ -13,26 +13,26 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 export function ConnectWalletGroup() {
-  const { login, logout, authenticated, ready, evmAddress } = usePrivyStatus()
+  const { login, logout, authenticated, ready, evmAddress, stellarAddress, connectFreighter, disconnectFreighter, isFreighterConnected } = usePrivyStatus()
   
   const { status, connect: connectCartridge, disconnect: disconnectCartridge, address } = useStarkSdk()
   
   const isCartridgeConnected = status === 'connected' && Boolean(address)
   const isCartridgeConnecting = status === 'connecting'
   
-  const totalConnected = (authenticated ? 1 : 0) + (isCartridgeConnected ? 1 : 0)
+  const totalConnected = (authenticated ? 1 : 0) + (isCartridgeConnected ? 1 : 0) + (stellarAddress ? 1 : 0)
 
   return (
     <div className="flex bg-surface-container-low p-1">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="px-4 py-1.5 bg-primary-container text-on-primary-container text-[10px] font-bold tracking-widest hover:brightness-110 transition-all uppercase flex items-center gap-2 outline-none">
-            {totalConnected > 0 ? `${totalConnected} Connected` : 'Connect'}
+            {totalConnected > 0 ? `${totalConnected} Connected` : 'Connect Account'}
             <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56 bg-surface-container-low border-surface-container-highest">
-          {/* BEAM (Privy) */}
+          {/* PRIVY (Beam) */}
           {(ready && authenticated) ? (
             <DropdownMenuItem onClick={() => logout()} className="flex justify-between cursor-pointer focus:bg-surface-container-highest">
               <div className="flex items-center gap-2">
@@ -45,7 +45,26 @@ export function ConnectWalletGroup() {
             <DropdownMenuItem onClick={() => login()} disabled={!ready} className="flex justify-between cursor-pointer focus:bg-surface-container-highest">
               <span className="text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
                 {!ready ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                Connect Beam
+                Connect Privy
+              </span>
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuSeparator className="bg-surface-container-highest" />
+
+          {/* FREIGHTER (Stellar) */}
+          {stellarAddress ? (
+            <DropdownMenuItem onClick={() => disconnectFreighter()} className="flex justify-between cursor-pointer focus:bg-surface-container-highest">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-blue-300 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold tracking-widest uppercase">Stellar</span>
+              </div>
+              <span className="text-xs text-muted-foreground font-mono">{stellarAddress.slice(0, 6)}…{stellarAddress.slice(-4)}</span>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={() => connectFreighter()} className="flex justify-between cursor-pointer focus:bg-surface-container-highest">
+              <span className="text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
+                Connect Stellar
               </span>
             </DropdownMenuItem>
           )}

@@ -6,18 +6,18 @@
 // verdict only when 2-of-3 models agree on the structured output.
 // -----------------------------------------------------------------------
 
-export interface ExtractionOutcome {
-  extracted: boolean
-  sigma_banked: number
+export interface ResolutionOutcome {
+  resolved: boolean
+  outcome?: 'YES' | 'NO'
 }
 
 export interface ConsensusResult {
   consensus: boolean
-  verdict: ExtractionOutcome | null
+  verdict: ResolutionOutcome | null
   votes: {
-    gemini: ExtractionOutcome | null
-    gemma: ExtractionOutcome | null
-    llama: ExtractionOutcome | null
+    gemini: ResolutionOutcome | null
+    gemma: ResolutionOutcome | null
+    llama: ResolutionOutcome | null
   }
   agreeing_models: string[]
 }
@@ -32,7 +32,7 @@ async function callGoogleAI(
   base64Image: string,
   mimeType: string,
   prompt: string
-): Promise<ExtractionOutcome | null> {
+): Promise<ResolutionOutcome | null> {
   const apiKey = process.env.GOOGLE_AI_API_KEY
   if (!apiKey) {
     console.error(`[vision-oracle] Missing GOOGLE_AI_API_KEY`)
@@ -58,10 +58,10 @@ async function callGoogleAI(
           responseSchema: {
             type: 'OBJECT',
             properties: {
-              extracted: { type: 'BOOLEAN' },
-              sigma_banked: { type: 'NUMBER' },
+              resolved: { type: 'BOOLEAN' },
+              outcome: { type: 'STRING' },
             },
-            required: ['extracted', 'sigma_banked'],
+            required: ['resolved'],
           },
         },
       }),
@@ -106,7 +106,7 @@ async function callGroqLlama(
   base64Image: string,
   mimeType: string,
   prompt: string
-): Promise<ExtractionOutcome | null> {
+): Promise<ResolutionOutcome | null> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) {
     console.error(`[vision-oracle] Missing GROQ_API_KEY`)
@@ -183,11 +183,11 @@ async function callGroqLlama(
 // -----------------------------------------------------------------------
 
 function findConsensus(
-  votes: (ExtractionOutcome | null)[]
-): { verdict: ExtractionOutcome | null; indices: number[] } {
+  votes: (ResolutionOutcome | null)[]
+): { verdict: ResolutionOutcome | null; indices: number[] } {
   const valid = votes
     .map((v, i) => ({ v, i }))
-    .filter((x) => x.v !== null) as { v: ExtractionOutcome; i: number }[]
+    .filter((x) => x.v !== null) as { v: ResolutionOutcome; i: number }[]
 
   if (valid.length < 2) {
     return { verdict: null, indices: [] }
@@ -195,7 +195,7 @@ function findConsensus(
 
   // Compare by exact JSON signature
   const signatures = valid.map((x) =>
-    JSON.stringify({ extracted: x.v.extracted, sigma_banked: x.v.sigma_banked })
+    JSON.stringify({ resolved: x.v.resolved, outcome: x.v.outcome })
   )
 
   const counts: Record<string, { count: number; indices: number[] }> = {}
@@ -221,13 +221,13 @@ function findConsensus(
 
 const MODEL_NAMES = ['gemini', 'gemma', 'llama'] as const
 
-const DEFAULT_PROMPT = `You are an esports match analyzer acting as an optimistic oracle.
-Look at this scoreboard or victory screen.
-Determine if the main player successfully extracted/won.
-Extract the total "Sigma" banked or score (if they died or didn't extract, output 0).
-Respond ONLY with a valid JSON object. Do not output markdown, do not use the words 'boolean' or 'number' as values. Use actual true/false and integers.
-Example exactly like this:
-{"extracted": true, "sigma_banked": 450}`
+const DEFAULT_PROMPT = `You are an AI acting as an optimistic oracle for a Polymarket-style binary prediction market.
+Look at this stream screenshot.
+Determine if the market has resolved according to its rules.
+Respond ONLY with a valid JSON object. Do not output markdown. 
+Return exactly: {"resolved": true, "outcome": "YES"} or {"resolved": true, "outcome": "NO"} or {"resolved": false} if the event is still ongoing.
+Example:
+{"resolved": true, "outcome": "YES"}`
 
 /**
  * Runs the full 2-of-3 diverse-model vision consensus against a base64-encoded image.

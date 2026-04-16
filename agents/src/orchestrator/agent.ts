@@ -19,6 +19,36 @@ import {
 import { ENTRYPOINTS, POOL_STATUS, SETTLEMENT_MODE } from '../shared/constants.js'
 import { decodeShortString } from '../shared/encoding.js'
 import { generateRiotReclaimProof } from '../shared/reclaim.js'
+import { runVisionConsensus } from '../shared/vision-oracle.js'
+import { captureSettlementFrame } from '../shared/stream-ingestion.js'
+import streamSources from '../shared/stream-sources.json' with { type: 'json' }
+
+// -----------------------------------------------------------------------
+// Stream URL resolution for Vision AI pools
+// -----------------------------------------------------------------------
+
+function resolveStreamUrl(pool: BettingPoolModel): string | null {
+  const poolKey = `pool_${pool.pool_id}`
+  const overrides = (streamSources as any).pool_overrides ?? {}
+  if (overrides[poolKey]) return overrides[poolKey]
+
+  const channels = (streamSources as any).channels ?? {}
+  const gameWorld = pool.game_world?.toLowerCase() ?? ''
+  const gameId = String(pool.game_id ?? '')
+
+  for (const [, channel] of Object.entries(channels) as [string, any][]) {
+    const aliases: string[] = channel.aliases ?? []
+    if (
+      aliases.some((a: string) => a.toLowerCase() === gameWorld) ||
+      aliases.some((a: string) => a.toLowerCase() === gameId.toLowerCase())
+    ) {
+      return channel.url
+    }
+  }
+
+  if (process.env.VISION_STREAM_URL) return process.env.VISION_STREAM_URL
+  return null
+}
 
 // -----------------------------------------------------------------------
 // Settlement cooldown
@@ -190,7 +220,44 @@ agent.addCapability({
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
         if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
-          skipped++ // Vision AI pools require explicit screenshot submission
+          // Autonomous Vision AI settlement via Puppeteer
+          const streamUrl = resolveStreamUrl(pool)
+          if (!streamUrl) { skipped++; continue }
+          try {
+            const frame = await captureSettlementFrame(streamUrl)
+            if (!frame) { cooldown.markFailed(poolId); results.push(`Pool #${poolId} stream capture failed`); continue }
+            let customPrompt: string | undefined = undefined
+            const web2 = await fetchWeb2PoolById(poolId)
+            if (web2) {
+              const matchId = decodeShortString(web2.match_id, 'match_id')
+              const { getMarketContext } = await import('../shared/market-generator.js')
+              const context = getMarketContext(matchId)
+              if (context) {
+                customPrompt = `You are an AI acting as an optimistic oracle for a Polymarket-style binary prediction market.
+Look at this stream screenshot.
+Determine if the market has resolved according to this rule: ${context.resolution_criteria}
+Respond ONLY with a valid JSON object. Do not output markdown. 
+Return exactly: {"resolved": true, "outcome": "YES"} or {"resolved": true, "outcome": "NO"} or {"resolved": false} if the event is still ongoing.
+Example:
+{"resolved": true, "outcome": "YES"}`
+              }
+            }
+
+            const consensus = await runVisionConsensus(frame.base64, frame.mimeType, customPrompt)
+            if (!consensus.consensus) { cooldown.markFailed(poolId); results.push(`Pool #${poolId} Vision DISPUTE`); continue }
+            if (!consensus.verdict!.resolved) { cooldown.markFailed(poolId); results.push(`Pool #${poolId} Event ongoing`); continue }
+            const winner = consensus.verdict!.outcome === 'YES' ? 1 : 2
+            const txHash = await executeAndWait([{
+              contractAddress: config.ESCROW_ADDRESS,
+              entrypoint: ENTRYPOINTS.settlePool,
+              calldata: [poolId.toString(), winner.toString()],
+            }])
+            cooldown.clear(poolId)
+            results.push(`✅ Vision AI pool #${poolId} settled — P${winner} (${consensus.agreeing_models.join('+')}) tx: ${txHash}`)
+          } catch (err: any) {
+            cooldown.markFailed(poolId)
+            results.push(`Pool #${poolId} vision error: ${err?.message ?? err}`)
+          }
           continue
         } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
@@ -371,7 +438,41 @@ agent.addCapability({
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
         if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
-          continue // Autonomous background loop cannot resolve Vision AI without an image hook
+          const streamUrl = resolveStreamUrl(pool)
+          if (!streamUrl) { continue }
+          try {
+            const frame = await captureSettlementFrame(streamUrl)
+            if (!frame) { cooldown.markFailed(poolId); continue }
+            let customPrompt: string | undefined = undefined
+            const web2 = await fetchWeb2PoolById(poolId)
+            if (web2) {
+              const matchId = decodeShortString(web2.match_id, 'match_id')
+              const { getMarketContext } = await import('../shared/market-generator.js')
+              const context = getMarketContext(matchId)
+              if (context) {
+                customPrompt = `You are an AI acting as an optimistic oracle for a Polymarket-style binary prediction market.
+Look at this stream screenshot.
+Determine if the market has resolved according to this rule: ${context.resolution_criteria}
+Respond ONLY with a valid JSON object. Do not output markdown. 
+Return exactly: {"resolved": true, "outcome": "YES"} or {"resolved": true, "outcome": "NO"} or {"resolved": false} if the event is still ongoing.
+Example:
+{"resolved": true, "outcome": "YES"}`
+              }
+            }
+
+            const consensus = await runVisionConsensus(frame.base64, frame.mimeType, customPrompt)
+            if (!consensus.consensus) { cooldown.markFailed(poolId); continue }
+            if (!consensus.verdict!.resolved) { cooldown.markFailed(poolId); continue }
+            const winner = consensus.verdict!.outcome === 'YES' ? 1 : 2
+            await executeAndWait([{
+              contractAddress: config.ESCROW_ADDRESS,
+              entrypoint: ENTRYPOINTS.settlePool,
+              calldata: [poolId.toString(), winner.toString()],
+            }])
+            cooldown.clear(poolId)
+            settled++
+          } catch { cooldown.markFailed(poolId) }
+          continue
         } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)
           if (!web2) {
@@ -455,6 +556,41 @@ async function runCycle() {
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
         if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
+          const streamUrl = resolveStreamUrl(pool)
+          if (!streamUrl) { continue }
+          try {
+            const frame = await captureSettlementFrame(streamUrl)
+            if (!frame) { cooldown.markFailed(poolId); continue }
+            let customPrompt: string | undefined = undefined
+            const web2 = await fetchWeb2PoolById(poolId)
+            if (web2) {
+              const matchId = decodeShortString(web2.match_id, 'match_id')
+              const { getMarketContext } = await import('../shared/market-generator.js')
+              const context = getMarketContext(matchId)
+              if (context) {
+                customPrompt = `You are an AI acting as an optimistic oracle for a Polymarket-style binary prediction market.
+Look at this stream screenshot.
+Determine if the market has resolved according to this rule: ${context.resolution_criteria}
+Respond ONLY with a valid JSON object. Do not output markdown. 
+Return exactly: {"resolved": true, "outcome": "YES"} or {"resolved": true, "outcome": "NO"} or {"resolved": false} if the event is still ongoing.
+Example:
+{"resolved": true, "outcome": "YES"}`
+              }
+            }
+
+            const consensus = await runVisionConsensus(frame.base64, frame.mimeType, customPrompt)
+            if (!consensus.consensus) { cooldown.markFailed(poolId); continue }
+            if (!consensus.verdict!.resolved) { cooldown.markFailed(poolId); continue }
+            const winner = consensus.verdict!.outcome === 'YES' ? 1 : 2
+            const txHash = await executeAndWait([{
+              contractAddress: config.ESCROW_ADDRESS,
+              entrypoint: ENTRYPOINTS.settlePool,
+              calldata: [poolId.toString(), winner.toString()],
+            }])
+            cooldown.clear(poolId)
+            settled++
+            console.log(`[orchestrator] ✅ Vision AI pool #${poolId} auto-settled (${consensus.agreeing_models.join('+')}) — tx: ${txHash}`)
+          } catch { cooldown.markFailed(poolId) }
           continue
         } else if (Number(pool.settlement_mode) === SETTLEMENT_MODE.WEB2_ZKTLS) {
           const web2 = await fetchWeb2PoolById(poolId)

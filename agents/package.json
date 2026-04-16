@@ -21,6 +21,10 @@
     "ethers": "^6.16.0",
     "mppx": "^0.5.10",
     "openai": "^5.23.2",
+    "puppeteer": "^24.40.0",
+    "puppeteer-core": "^24.40.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "starknet": "^8.1.2",
     "viem": "^2.47.6",
     "zod": "^3.24.1"

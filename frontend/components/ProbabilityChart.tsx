@@ -108,11 +108,11 @@ function ProbabilityChartContent() {
           <div className="flex items-center gap-3 text-[10px]">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#a855f7]" />
-              P1: {currentP1.toFixed(1)}%
+              YES: {currentP1.toFixed(1)}%
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#06b6d4]" />
-              P2: {currentP2.toFixed(1)}%
+              NO: {currentP2.toFixed(1)}%
             </span>
           </div>
         )}
@@ -159,7 +159,7 @@ function ProbabilityChartContent() {
                 <Area
                   type="monotone"
                   dataKey="p1"
-                  name="Player 1"
+                  name="YES"
                   stroke="#a855f7"
                   strokeWidth={2}
                   fill="url(#gradientP1)"
@@ -169,7 +169,7 @@ function ProbabilityChartContent() {
                 <Area
                   type="monotone"
                   dataKey="p2"
-                  name="Player 2"
+                  name="NO"
                   stroke="#06b6d4"
                   strokeWidth={2}
                   fill="url(#gradientP2)"

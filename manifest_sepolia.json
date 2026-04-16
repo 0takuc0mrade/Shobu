@@ -34,7 +34,7 @@
   "contracts": [
     {
       "address": "0x524aa3710ce681af6d8ab570f68065d52f865c954dd01ba7e92e76d49446538",
-      "class_hash": "0x21df755ec22b97deca1d4c9d6c4c67182ae1aea25c6f6f1f64bc72b130fabe6",
+      "class_hash": "0x2971042bf9865e97834f8fb14f21ededcac69449042d44ae4f01587fd2af561",
       "init_calldata": [],
       "tag": "shobu-Escrow",
       "selector": "0x42b9a1246483c0962a8968cf3598dc50b00ee51fd7258b98762f1c071279fd0",

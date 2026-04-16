@@ -6,6 +6,9 @@ import { Wallet, Settings, Terminal, LineChart, Activity, TrendingUp, Link2, Dow
 import { useStarkSdk } from '@/providers/stark-sdk-provider'
 import { useAllBettingPools, useUserBets } from '@/hooks/use-dojo-betting'
 import { formatUnits } from '@/lib/token-utils'
+import { resolveTokenSymbol, resolveTokenDecimals } from '@/lib/token-formatters'
+import { usePrivyStatus } from '@/providers/privy-status-context'
+import { ClaimButton } from '@/components/claim-button'
 
 function formatPot(raw?: string, decimals = 18): string {
   if (!raw || raw === '0') return '0'
@@ -18,7 +21,13 @@ function SkeletonLine({ className = '' }: { className?: string }) {
 
 export default function PortfolioPage() {
   const { address, status } = useStarkSdk()
-  const isConnected = status === 'connected' && Boolean(address)
+  const { authenticated: privyAuthenticated, evmAddress: privyEvmAddress, stellarAddress: privyStellarAddress, isFreighterConnected } = usePrivyStatus()
+  
+  // Connected if ANY wallet is active (Starknet, BEAM/EVM, or Stellar)
+  const isStarknetConnected = status === 'connected' && Boolean(address)
+  const isConnected = isStarknetConnected || privyAuthenticated || isFreighterConnected
+  const chainType = isStarknetConnected ? 'starknet' : (privyAuthenticated || isFreighterConnected) ? 'stellar' : null
+  
   const { bets, loading: betsLoading } = useUserBets(address)
   const { pools, loading: poolsLoading } = useAllBettingPools()
 
@@ -150,23 +159,29 @@ export default function PortfolioPage() {
                       {stats.activeBets.length === 0 ? (
                         <div className="py-6 text-center text-[10px] text-on-surface-variant uppercase tracking-widest font-mono">No active positions</div>
                       ) : (
-                        stats.activeBets.slice(0, 5).map(bet => (
-                          <div key={`${bet.pool_id}-${bet.bettor}`} className="p-4 bg-surface-container-low/80 flex justify-between items-center">
-                            <div className="flex gap-3 items-center">
-                              <div className="w-8 h-8 bg-surface-container-highest flex items-center justify-center">
-                                <TrendingUp className="w-4 h-4 text-primary" />
+                        stats.activeBets.slice(0, 5).map(bet => {
+                          const pool = pools.find(p => p.pool_id === bet.pool_id)
+                          return (
+                            <div key={`${bet.pool_id}-${bet.bettor}`} className="p-4 bg-surface-container-low/80 flex justify-between items-center">
+                              <div className="flex gap-3 items-center">
+                                <div className="w-8 h-8 bg-surface-container-highest flex items-center justify-center">
+                                  <TrendingUp className="w-4 h-4 text-primary" />
+                                </div>
+                                <div>
+                                  <p className="font-headline font-bold text-xs">Pool #{bet.pool_id}</p>
+                                  <p className="text-[9px] font-mono text-[#988ca0] uppercase">Predicted: {bet.predicted_winner?.slice(0, 6)}…</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-headline font-bold text-xs">Pool #{bet.pool_id}</p>
-                                <p className="text-[9px] font-mono text-[#988ca0] uppercase">Predicted: {bet.predicted_winner?.slice(0, 6)}…</p>
+                              <div className="text-right">
+                                <p className="font-mono text-xs text-white font-medium">
+                                  {formatPot(bet.amount)}{' '}
+                                  {resolveTokenSymbol(pool, chainType)}
+                                </p>
+                                <p className="text-[8px] font-mono text-primary uppercase mt-1">Active</p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className="font-mono text-xs text-white font-medium">{formatPot(bet.amount)} USDC</p>
-                              <p className="text-[8px] font-mono text-primary uppercase mt-1">Active</p>
-                            </div>
-                          </div>
-                        ))
+                          )
+                        })
                       )}
                     </div>
                   </section>
@@ -187,7 +202,7 @@ export default function PortfolioPage() {
                     <div>
                       <h1 className="font-headline text-4xl font-bold tracking-tighter text-white uppercase">Portfolio Overview</h1>
                       <p className="text-muted-foreground font-headline text-xs tracking-widest mt-2 uppercase">
-                        Protocol Terminal / {address?.slice(0, 6)}…{address?.slice(-4)}
+                        Protocol Terminal / {(address || privyEvmAddress || privyStellarAddress)?.slice(0, 6)}…{(address || privyEvmAddress || privyStellarAddress)?.slice(-4)}
                       </p>
                     </div>
                     <div className="flex gap-4">
@@ -304,12 +319,25 @@ export default function PortfolioPage() {
                                 <tr key={`${bet.pool_id}-${bet.bettor}`} className="hover:bg-white/5 transition-colors">
                                   <td className="px-6 py-4 text-gray-300">Pool #{bet.pool_id}</td>
                                   <td className="px-6 py-4 text-white">{bet.predicted_winner?.slice(0, 8)}…</td>
-                                  <td className="px-6 py-4 text-white">{formatPot(bet.amount)} USDC</td>
+                                  <td className="px-6 py-4 text-white">
+                                    {formatPot(bet.amount)}{' '}
+                                    {resolveTokenSymbol(pool, chainType)}
+                                  </td>
                                   <td className="px-6 py-4">
                                     {isSettled ? (
-                                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase font-headline ${isWin ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-400'}`}>
-                                        {isWin ? 'Won' : 'Lost'}
-                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase font-headline ${isWin ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-400'}`}>
+                                          {isWin ? 'Won' : 'Lost'}
+                                        </span>
+                                        {isWin && chainType && (
+                                          <ClaimButton 
+                                            pool={pool} 
+                                            userBetAmount={bet.amount ?? '0'} 
+                                            chainType={chainType} 
+                                            className="ml-2"
+                                          />
+                                        )}
+                                      </div>
                                     ) : (
                                       <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase font-headline">Active</span>
                                     )}

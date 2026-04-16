@@ -1,0 +1,50 @@
+{
+  "YT_gEaWOTfNyPE": {
+    "market_title": "Will oyeeXO achieve Immortal rank in Valorant during this stream?",
+    "resolution_criteria": "Resolves to YES if oyeeXO's Valorant rank visibly changes to Immortal during this specific live stream. Resolves to NO if oyeeXO does not reach Immortal rank by the end of this stream, or if the stream concludes without a definitive rank-up to Immortal."
+  },
+  "YT_Lh-r68DG1BU": {
+    "market_title": "Will the 'RUST BOMIJDAN PROGACHA CS2' stream reach 5 concurrent viewers?",
+    "resolution_criteria": "Resolves to YES if the stream's concurrent viewer count, as displayed on the platform, reaches 5 or more at any point during this specific broadcast. Resolves to NO if the stream ends before reaching 5 concurrent viewers."
+  },
+  "YT_DIsaRF3NSXE": {
+    "market_title": "Will Ivory win their DreamLeague Season 29 Closed Qualifiers match against REKONIX?",
+    "resolution_criteria": "Resolves to YES if Ivory officially wins their current ESL Dota 2 series against REKONIX. Resolves to NO if REKONIX officially wins the series. If the series is cancelled, postponed indefinitely, or no official winner is declared by the end of the day, the market resolves to NO."
+  },
+  "YT_uvjxatXkDuE": {
+    "market_title": "Will the 'DOTA 2 SHORTSSTREAM' feature live DOTA 2 gameplay?",
+    "resolution_criteria": "Resolves to YES if the streamer engages in live DOTA 2 gameplay (e.g., playing a match, bot game, or training) for a cumulative duration of at least 5 minutes during the stream. Resolves to NO if no live DOTA 2 gameplay is shown, only discussions, shorts, or other games (including 'Silkin'), or if the stream ends before 5 minutes of DOTA 2 gameplay is accumulated."
+  },
+  "YT_Tij6jlFuLB4": {
+    "market_title": "Will Vici Gaming win their current Dota 2 game against Roar Gaming?",
+    "resolution_criteria": "Resolves to YES if Vici Gaming achieves a 'Victory' in the current game against Roar Gaming. Resolves to NO if Vici Gaming achieves 'Defeat' or the game ends with Roar Gaming as the winner. If the game is postponed, cancelled, or the stream ends before a definitive outcome, the market will resolve to NO."
+  },
+  "YT_NCmvTYoD8xk": {
+    "market_title": "Will NOVA win their VALORANT match against WOL in 2026 VCT CN Stage 1?",
+    "resolution_criteria": "Resolves to YES if NOVA wins their VALORANT match against WOL (i.e., wins more maps than WOL) during the 2026 VCT CN Stage 1 broadcast. Resolves to NO if WOL wins the match or if the match is cancelled/postponed indefinitely before a result is broadcast."
+  },
+  "YT_rs5u-T1OBsQ": {
+    "market_title": "Will a player achieve a Pentakill in the current DOTA 2 Turbo Mode match?",
+    "resolution_criteria": "Resolves to YES if a player on either team achieves a Pentakill as officially recognized by the DOTA 2 game client during the current match. Resolves to NO if the current match concludes without a Pentakill or the stream ends before the match's conclusion."
+  },
+  "YT_Guz6xLbo030": {
+    "market_title": "Will the streamer win their current Dota 2 match?",
+    "resolution_criteria": "Resolves to YES if the streamer's team achieves 'Victory' in their current Dota 2 match. Resolves to NO if their team experiences 'Defeat' or if the stream ends before a clear match conclusion."
+  },
+  "YT_TdIHytANmt8": {
+    "market_title": "Will the streamer's team win the current Dota 2 match?",
+    "resolution_criteria": "Resolves to YES if the 'Victory' screen appears for the streamer's team at the end of the current Dota 2 match. Resolves to NO if the 'Defeat' screen appears for the streamer's team, or if the stream ends before a clear match conclusion can be determined."
+  },
+  "YT_kKEa8-9zkvY": {
+    "market_title": "Will NixyExE win their current Valorant match?",
+    "resolution_criteria": "Resolves to YES if NixyExE's team wins their current Valorant match (e.g., reaches 13 rounds first or the opponent team surrenders). Resolves to NO if NixyExE's team loses the current Valorant match (e.g., the opponent team reaches 13 rounds first or NixyExE's team surrenders), or if the stream ends before the conclusion of the current match."
+  },
+  "YT_0D8jhx67IPg": {
+    "market_title": "Will VALCAOZ ESPORTS win their current Valorant match in the Vortex Nova Cup FINALS?",
+    "resolution_criteria": "Resolves to YES if the team representing VALCAOZ ESPORTS wins the current Valorant match being broadcast on this stream. Resolves to NO if VALCAOZ ESPORTS loses the current match, or if the match concludes without a clear win for VALCAOZ ESPORTS on this stream."
+  },
+  "YT_qLnmHFxgwZo": {
+    "market_title": "Will the streamer win their current Counter Strike 2 Premier Rank match?",
+    "resolution_criteria": "Resolves to YES if the streamer's team achieves victory in the current Counter Strike 2 Premier Rank match, as indicated by the in-game 'Victory' screen or scoreboard. Resolves to NO if the streamer's team experiences a 'Defeat' screen, loses the match, or if the stream ends before a clear match outcome is displayed."
+  }
+}

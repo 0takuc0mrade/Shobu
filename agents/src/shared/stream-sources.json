@@ -1,0 +1,41 @@
+{
+  "__comment": "Maps pool IDs or game identifiers to their stream sources. The settler agent uses this to automatically find the right stream URL when settling Vision AI pools.",
+
+  "channels": {
+    "shrapnel": {
+      "platform": "twitch",
+      "channel": "shrapnel_official",
+      "url": "https://www.twitch.tv/shrapnel_official",
+      "aliases": ["SHRAPNEL", "shrapnel"]
+    },
+    "league_of_legends": {
+      "platform": "twitch",
+      "channel": "riotgames",
+      "url": "https://www.twitch.tv/riotgames",
+      "aliases": ["LOL", "league", "RIOT_LOL"]
+    },
+    "valorant": {
+      "platform": "twitch",
+      "channel": "valorant",
+      "url": "https://www.twitch.tv/valorant",
+      "aliases": ["VALORANT", "val"]
+    },
+    "cs2": {
+      "platform": "twitch",
+      "channel": "esl_csgo",
+      "url": "https://www.twitch.tv/esl_csgo",
+      "aliases": ["CS2", "csgo", "counter_strike"]
+    },
+    "fortnite": {
+      "platform": "twitch",
+      "channel": "fortnite",
+      "url": "https://www.twitch.tv/fortnite",
+      "aliases": ["FORTNITE", "fn"]
+    }
+  },
+
+  "pool_overrides": {
+    "__comment": "Manual overrides: map specific pool IDs to stream URLs. These take priority over channel lookups.",
+    "example_pool_42": "https://www.twitch.tv/videos/1234567890"
+  }
+}

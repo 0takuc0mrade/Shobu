@@ -4,3 +4,6 @@ budokan/
 .synthesis-credentials
 node_modules
 .env
+.tmp/
+*.tsbuildinfo
+agents/test_images/

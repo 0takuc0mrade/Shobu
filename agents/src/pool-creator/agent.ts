@@ -17,6 +17,67 @@ import { fetchAllPools, type BettingPoolModel } from '../shared/torii.js'
 import { ENTRYPOINTS } from '../shared/constants.js'
 import { encodeShortString } from '../shared/encoding.js'
 import { getAccountByRiotId, getActiveGame } from '../shared/riot.js'
+import { getStreamsByChannel, getStreamsByGame, type TwitchStream, TWITCH_GAME_IDS } from '../shared/twitch.js'
+import { discoverEsportsStreams, type YouTubeStream } from '../shared/youtube.js'
+import { captureSettlementFrame } from '../shared/stream-ingestion.js'
+import streamSources from '../shared/stream-sources.json' with { type: 'json' }
+import { StellarAgentAdapter } from '../shared/stellar-adapter.js'
+import { generateMarketContext, saveMarketContext } from '../shared/market-generator.js'
+import { saveStellarPoolId } from '../shared/pool-id-map.js'
+
+// -----------------------------------------------------------------------
+// Dual-chain helper: fire-and-forget Stellar pool alongside Starknet
+// -----------------------------------------------------------------------
+
+const STELLAR_NETWORK = {
+  rpcUrl: 'https://soroban-testnet.stellar.org:443',
+  networkPassphrase: 'Test SDF Network ; September 2015',
+}
+const STELLAR_DEFAULT_TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
+
+import { Keypair } from '@stellar/stellar-sdk'
+
+// Deterministic placeholder addresses for player1/player2.
+// Derived from trivial seeds so they are valid StrKey addresses but
+// nobody holds meaningful keys for them. This ensures the Soroban
+// "Players cannot bet" guard never triggers on real users.
+const STELLAR_PLACEHOLDER_P1 = Keypair.fromRawEd25519Seed(
+  Buffer.alloc(32, 0)   // 32 zero bytes
+).publicKey()
+const STELLAR_PLACEHOLDER_P2 = Keypair.fromRawEd25519Seed(
+  Buffer.alloc(32, 1)   // 32 one bytes
+).publicKey()
+
+/**
+ * Attempts to create a pool on Stellar in parallel with the Starknet pool.
+ * Returns the tx hash AND the Stellar pool ID on success.
+ * This never throws — callers can safely fire-and-forget.
+ */
+async function tryStellarPoolCreation(deadline: number): Promise<{ hash: string; stellarPoolId: number | null } | null> {
+  const config = getConfig()
+  if (!config.STELLAR_PRIVATE_KEY) return null
+
+  const escrowId = process.env.STELLAR_ESCROW_CONTRACT_ID || 'CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M'
+
+  try {
+    const stellarAdapter = new StellarAgentAdapter(config.STELLAR_PRIVATE_KEY)
+
+    const response = await stellarAdapter.createPool(
+      STELLAR_NETWORK,
+      escrowId,
+      STELLAR_DEFAULT_TOKEN,
+      STELLAR_PLACEHOLDER_P1,
+      STELLAR_PLACEHOLDER_P2,
+      deadline
+    )
+    console.log(`[stellar] ✅ Pool created on Stellar — tx: ${response.hash}, stellarPoolId: ${response.stellarPoolId}`)
+    return response
+  } catch (err: any) {
+    console.error(`[stellar] ⚠️ Stellar pool creation failed (non-fatal): ${err?.message ?? err}`)
+    return null
+  }
+}
+
 // -----------------------------------------------------------------------
 // Feed parsing helpers (ported from pool-manager.mjs)
 // -----------------------------------------------------------------------
@@ -678,6 +739,12 @@ agent.addCapability({
         const matchId = `NA1_${liveGame.gameId}`;
         const deadline = Math.floor(Date.now() / 1000) + 1800;
 
+        // Polymarket Generation
+        const marketContext = await generateMarketContext(`${p1Tag.split('#')[0]} vs ${p2Tag.split('#')[0]}`, 'League of Legends', 1000);
+        if (marketContext) {
+          saveMarketContext(matchId, marketContext);
+        }
+
         const config = getConfig();
         const token = normalizeAddress(config.POOL_TOKEN);
 
@@ -691,8 +758,8 @@ agent.addCapability({
           deadline.toString(),
           addr1,
           addr2,
-          encodeShortString(p1Tag, 'player_1_tag'),
-          encodeShortString(p2Tag, 'player_2_tag'),
+          encodeShortString('YES', 'player_1_tag'),
+          encodeShortString('NO', 'player_2_tag'),
         ]
 
         const txHash = await executeAndWait([{
@@ -701,7 +768,7 @@ agent.addCapability({
           calldata
         }])
 
-        return `Successfully deployed Web2 Pool for ${gameName} vs ${p2Tag.split('#')[0]}! Tx: ${txHash}`;
+        return `Successfully deployed Polymarket YES/NO Pool for ${gameName}! Tx: ${txHash}`;
       } catch (err: any) {
          return `Failed to process Riot match creation: ${err?.message ?? err}`;
       }
@@ -713,6 +780,46 @@ agent.addCapability({
 
     return "Request understood but I couldn't map it to an active pool implementation.";
   }
+})
+
+// --- Capability: create_stellar_pool ---
+agent.addCapability({
+  name: 'create_stellar_pool',
+  description:
+    'Create a direct-mode betting pool on the Soroban Escrow contract on Stellar Testnet.',
+  inputSchema: z.object({
+    token: z.string().optional().describe('Token address on Stellar Testnet'),
+    player1: z.string().describe('Stellar address for Player 1'),
+    player2: z.string().describe('Stellar address for Player 2'),
+    deadline: z.number().int().describe('Betting deadline as unix timestamp'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+    if (!config.STELLAR_PRIVATE_KEY) {
+      return 'Stellar pool creation failed: STELLAR_PRIVATE_KEY is missing in config.';
+    }
+    const stellarAdapter = new StellarAgentAdapter(config.STELLAR_PRIVATE_KEY)
+
+    // Using Native XLM token wrapper on testnet by default
+    const token = args.token ?? 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
+    
+    // Deployed escrow contract ID we just provisioned
+    const escrowId = process.env.STELLAR_ESCROW_CONTRACT_ID || 'CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M';
+
+    try {
+      const response = await stellarAdapter.createPool(
+        { rpcUrl: 'https://soroban-testnet.stellar.org:443', networkPassphrase: 'Test SDF Network ; September 2015' },
+        escrowId,
+        token,
+        args.player1,
+        args.player2,
+        args.deadline
+      )
+      return `Stellar pool created — tx: ${response.hash}`
+    } catch (err: any) {
+      return `Failed to create Stellar pool: ${err.message}`
+    }
+  },
 })
 
 // --- Capability: scan_riot_match ---
@@ -823,6 +930,10 @@ agent.addCapability({
     const results: string[] = []
     let created = 0
 
+    // Fetch existing pools for cross-chain ID mapping
+    let existingPools: BettingPoolModel[] = []
+    try { existingPools = await fetchAllPools() } catch {}
+
     for (const riotId of currentBatch) {
       const [gameName, tagLine] = riotId.split('#')
       if (!gameName || !tagLine) {
@@ -881,15 +992,33 @@ agent.addCapability({
           encodeShortString(p2Tag, 'player_2_tag'),
         ]
 
-        const txHash = await executeAndWait([{
-          contractAddress: config.ESCROW_ADDRESS,
-          entrypoint: ENTRYPOINTS.createWeb2Pool,
-          calldata
-        }])
+        // Fire both chains in parallel — Stellar failure is non-fatal
+        const [starknetResult, stellarResult] = await Promise.allSettled([
+          executeAndWait([{
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.createWeb2Pool,
+            calldata
+          }]),
+          tryStellarPoolCreation(deadline),
+        ])
+
+        const txHash = starknetResult.status === 'fulfilled' ? starknetResult.value : null
+        if (!txHash) throw (starknetResult as PromiseRejectedResult).reason
+
+        const stellarResponse = stellarResult.status === 'fulfilled' ? stellarResult.value : null
+
+        // Write cross-chain pool ID mapping (computed locally to avoid Mppx fetch interference)
+        if (stellarResponse?.stellarPoolId != null) {
+          const starkPoolId = existingPools.length > 0
+            ? Math.max(...existingPools.map(p => p.pool_id)) + 1
+            : 1
+          saveStellarPoolId(starkPoolId, stellarResponse.stellarPoolId)
+        }
 
         riotPoolsCreatedThisSession.add(matchId)
         created++
-        results.push(`🎮 ${riotId}: LIVE in ${matchId}! Pool deployed — tx: ${txHash}`)
+        const chains = stellarResponse ? `starknet: ${txHash} | stellar: ${stellarResponse.hash}` : `tx: ${txHash}`
+        results.push(`🎮 ${riotId}: LIVE in ${matchId}! Pool deployed — ${chains}`)
       } catch (err: any) {
         results.push(`❌ ${riotId}: ${err?.message ?? err}`)
       }
@@ -1033,16 +1162,34 @@ agent.addCapability({
           deadline.toString(),        // deadline
         ]
 
-        const txHash = await executeAndWait([{
-          contractAddress: config.ESCROW_ADDRESS,
-          entrypoint: ENTRYPOINTS.createPool,
-          calldata,
-        }])
+        // Fire both chains in parallel — Stellar failure is non-fatal
+        const [starknetResult, stellarResult] = await Promise.allSettled([
+          executeAndWait([{
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.createPool,
+            calldata,
+          }]),
+          tryStellarPoolCreation(deadline),
+        ])
+
+        const txHash = starknetResult.status === 'fulfilled' ? starknetResult.value : null
+        if (!txHash) throw (starknetResult as PromiseRejectedResult).reason
+
+        const stellarResponse = stellarResult.status === 'fulfilled' ? stellarResult.value : null
+
+        // Write cross-chain pool ID mapping (computed locally to avoid Mppx fetch interference)
+        if (stellarResponse?.stellarPoolId != null) {
+          const starkPoolId = existingPools.length > 0
+            ? Math.max(...existingPools.map(p => p.pool_id)) + 1
+            : 1
+          saveStellarPoolId(starkPoolId, stellarResponse.stellarPoolId)
+        }
 
         pistolsPoolsCreatedThisSession.add(poolKey)
         existingKeys.add(poolKey)
         created++
-        results.push(`🔫 Created Pistols pool for duel #${duelId} — tx: ${txHash}`)
+        const chains = stellarResponse ? `starknet: ${txHash} | stellar: ${stellarResponse.hash}` : `tx: ${txHash}`
+        results.push(`🔫 Created Pistols pool for duel #${duelId} — ${chains}`)
       } catch (err: any) {
         results.push(`❌ Failed to create pool for duel #${duelId}: ${err?.message ?? err}`)
       }
@@ -1051,6 +1198,360 @@ agent.addCapability({
     if (results.length === 0) return 'Pistols scan complete — all active duels already have pools.'
     return `Pistols Auto-Scan (${created} pools created):\n${results.join('\n')}`
   },
+})
+
+// --- Capability: auto_scan_twitch ---
+// Discovers live Twitch streams for configured games/channels and
+// creates Vision AI pools from them. This is the full autonomous loop:
+// Twitch API → Screenshot → Pool creation.
+const twitchPoolsCreatedThisSession = new Set<string>()
+
+agent.addCapability({
+  name: 'auto_scan_twitch',
+  description:
+    'Scan Twitch for live streams of configured esports games and automatically create Vision AI betting pools. Uses the Twitch Helix API to discover streams and Puppeteer to verify the game state.',
+  inputSchema: z.object({
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe('If true, log what would be created without executing transactions'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+
+    if (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET) {
+      return 'Skipping Twitch scan: TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are required.'
+    }
+
+    const results: string[] = []
+    let created = 0
+
+    // Strategy 1: Check configured channels from stream-sources.json
+    const channels = (streamSources as any).channels ?? {}
+    const twitchChannels: string[] = []
+    for (const [, ch] of Object.entries(channels) as [string, any][]) {
+      if (ch.platform === 'twitch' && ch.channel) {
+        twitchChannels.push(ch.channel)
+      }
+    }
+
+    let streams: TwitchStream[] = []
+    try {
+      if (twitchChannels.length > 0) {
+        const channelStreams = await getStreamsByChannel(twitchChannels)
+        streams.push(...channelStreams)
+      }
+
+      // Strategy 2: Also check top streams for configured esports games
+      const watchedGameIds = process.env.TWITCH_GAME_IDS
+        ? process.env.TWITCH_GAME_IDS.split(',')
+        : [TWITCH_GAME_IDS['League of Legends'], TWITCH_GAME_IDS['VALORANT']]
+
+      const gameStreams = await getStreamsByGame(watchedGameIds.filter(Boolean))
+      // Only take top 5 by viewers to keep pool count manageable
+      const topGameStreams = gameStreams
+        .sort((a, b) => b.viewerCount - a.viewerCount)
+        .slice(0, 5)
+      streams.push(...topGameStreams)
+    } catch (err: any) {
+      return `Twitch API error: ${err?.message ?? err}`
+    }
+
+    // Deduplicate by stream ID
+    const seen = new Set<string>()
+    streams = streams.filter(s => {
+      if (seen.has(s.id)) return false
+      seen.add(s.id)
+      return true
+    })
+
+    if (streams.length === 0) {
+      return 'Twitch scan complete — no live streams found for configured channels/games.'
+    }
+
+    results.push(`Found ${streams.length} live stream(s) on Twitch`)
+
+    // Fetch existing pools to avoid duplicates
+    let existingPools: BettingPoolModel[] = []
+    try {
+      existingPools = await fetchAllPools()
+    } catch (err: any) {
+      return `Torii query failed: ${err?.message ?? err}`
+    }
+
+    // We use a composite key of channel+game to track uniqueness
+    // since Twitch stream IDs change between sessions
+    const existingStreamKeys = new Set<string>()
+    for (const pool of existingPools) {
+      if (Number(pool.status) === 0) { // OPEN
+        existingStreamKeys.add(`${pool.game_world}:${pool.game_id}`)
+      }
+    }
+
+    const creatorAddr = config.RIOT_POOL_CREATOR_ADDRESS || config.CARTRIDGE_ADDRESS
+    if (!creatorAddr) {
+      return 'Skipping Twitch scan: RIOT_POOL_CREATOR_ADDRESS or CARTRIDGE_ADDRESS is not set.'
+    }
+
+    for (const stream of streams) {
+      if (created >= config.MAX_POOLS_PER_TICK) break
+
+      // Unique key per stream session to prevent duplicate pools
+      const streamKey = `twitch:${stream.userLogin}:${stream.gameId}`
+      if (twitchPoolsCreatedThisSession.has(streamKey)) {
+        results.push(`⏩ ${stream.userName}: Pool already created this session`)
+        continue
+      }
+
+      if (args.dryRun) {
+        results.push(
+          `[DRY RUN] Would create Vision AI pool for ${stream.userName} ` +
+          `playing ${stream.gameName} (${stream.viewerCount} viewers)`
+        )
+        created++
+        continue
+      }
+
+      try {
+        // Verify the stream is actually showing game content by capturing a frame
+        const frame = await captureSettlementFrame(stream.streamUrl, { timeout: 25000 })
+        if (!frame) {
+          results.push(`⚠️ ${stream.userName}: Stream capture failed — skipping`)
+          continue
+        }
+
+        results.push(`📸 ${stream.userName}: Stream verified (${stream.gameName})`)
+
+        // Create the pool
+        // Use the stream channel hash as game_id for uniqueness
+        const gameIdNum = Math.abs(hashString(streamKey)) % (2 ** 31)
+        const deadline = Math.floor(Date.now() / 1000) + 2400 // 40 min betting window
+        const token = normalizeAddress(config.POOL_TOKEN)
+
+        const addr1 = normalizeAddress(creatorAddr)
+        const addr2 = addr1.slice(0, -1) + (addr1.endsWith('e') ? 'f' : 'e')
+
+        // Generate binary prediction market via LLM
+        const context = await generateMarketContext(stream.title, stream.gameName, stream.viewerCount)
+        if (!context) {
+          results.push(`⚠️ ${stream.userName}: Failed to generate market context`)
+          continue
+        }
+
+        const matchId = `TTV_${stream.id}`
+        saveMarketContext(matchId, context)
+
+        const p1Tag = "YES"
+        const p2Tag = "NO"
+
+        const calldata = [
+          encodeShortString(matchId, 'match_id'),
+          encodeShortString('TWITCH_VISION', 'game_provider_id'),
+          token,
+          deadline.toString(),
+          addr1,
+          addr2,
+          encodeShortString(p1Tag, 'player_1_tag'),
+          encodeShortString(p2Tag, 'player_2_tag'),
+        ]
+
+        // Fire both chains in parallel — Stellar failure is non-fatal
+        const [starknetResult, stellarResult] = await Promise.allSettled([
+          executeAndWait([{
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.createWeb2Pool,
+            calldata,
+          }]),
+          tryStellarPoolCreation(deadline),
+        ])
+
+        const txHash = starknetResult.status === 'fulfilled' ? starknetResult.value : null
+        if (!txHash) throw (starknetResult as PromiseRejectedResult).reason
+
+        const stellarResponse = stellarResult.status === 'fulfilled' ? stellarResult.value : null
+
+        // Write cross-chain pool ID mapping (computed locally to avoid Mppx fetch interference)
+        if (stellarResponse?.stellarPoolId != null) {
+          const starkPoolId = existingPools.length > 0
+            ? Math.max(...existingPools.map(p => p.pool_id)) + 1
+            : 1
+          saveStellarPoolId(starkPoolId, stellarResponse.stellarPoolId)
+        }
+
+        twitchPoolsCreatedThisSession.add(streamKey)
+        created++
+        const chains = stellarResponse ? `starknet: ${txHash} | stellar: ${stellarResponse.hash}` : `tx: ${txHash}`
+        results.push(
+          `📺 ${stream.userName}: Vision AI pool created for ${stream.gameName} ` +
+          `(${stream.viewerCount} viewers) — ${chains}`
+        )
+      } catch (err: any) {
+        results.push(`❌ ${stream.userName}: ${err?.message ?? err}`)
+      }
+    }
+
+    if (results.length === 0) return 'Twitch scan complete — no new pools to create.'
+    return `Twitch Auto-Scan (${created} pools created):\n${results.join('\n')}`
+  }
+})
+
+// Simple string hash for generating deterministic game IDs from stream keys
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + ch
+    hash |= 0 // Convert to 32-bit integer
+  }
+  return hash
+}
+
+// --- Capability: auto_scan_youtube ---
+// Discovers live YouTube esports streams when Twitch credentials
+// are unavailable. Uses the YouTube Data API v3 (just an API key).
+const ytPoolsCreatedThisSession = new Set<string>()
+
+agent.addCapability({
+  name: 'auto_scan_youtube',
+  description:
+    'Scan YouTube for live esports streams and create Vision AI betting pools. Uses YouTube Data API v3 — only requires an API key (no OAuth).',
+  inputSchema: z.object({
+    games: z
+      .array(z.string())
+      .optional()
+      .describe('Game titles to search for (defaults to LoL, Valorant, CS2, Dota 2)'),
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe('If true, log what would be created without executing transactions'),
+  }),
+  async run({ args }) {
+    const config = getConfig()
+
+    if (!process.env.YOUTUBE_API_KEY) {
+      return 'Skipping YouTube scan: YOUTUBE_API_KEY is required.'
+    }
+
+    const results: string[] = []
+    let created = 0
+
+    // Fetch existing pools for cross-chain ID mapping
+    let existingPools: BettingPoolModel[] = []
+    try { existingPools = await fetchAllPools() } catch {}
+
+    // Discover live esports streams
+    let streams: YouTubeStream[]
+    try {
+      streams = await discoverEsportsStreams(args.games)
+    } catch (err: any) {
+      return `YouTube API error: ${err?.message ?? err}`
+    }
+
+    if (streams.length === 0) {
+      return 'YouTube scan complete \u2014 no live esports streams found.'
+    }
+
+    results.push(`Found ${streams.length} live esports stream(s) on YouTube`)
+
+    const creatorAddr = config.RIOT_POOL_CREATOR_ADDRESS || config.CARTRIDGE_ADDRESS
+    if (!creatorAddr) {
+      return 'Skipping YouTube scan: RIOT_POOL_CREATOR_ADDRESS or CARTRIDGE_ADDRESS is not set.'
+    }
+
+    for (const stream of streams) {
+      if (created >= config.MAX_POOLS_PER_TICK) break
+
+      const streamKey = `yt:${stream.videoId}`
+      if (ytPoolsCreatedThisSession.has(streamKey)) {
+        results.push(`\u23e9 ${stream.channelTitle}: Pool already created this session`)
+        continue
+      }
+
+      if (args.dryRun) {
+        results.push(
+          `[DRY RUN] Would create Vision AI pool for "${stream.title}" ` +
+          `by ${stream.channelTitle}`
+        )
+        created++
+        continue
+      }
+
+      try {
+        // Capture a frame to verify game content
+        const frame = await captureSettlementFrame(stream.watchUrl, { timeout: 30000 })
+        if (!frame) {
+          results.push(`\u26a0\ufe0f ${stream.channelTitle}: Stream capture failed \u2014 skipping`)
+          continue
+        }
+
+        results.push(`\ud83d\udcf8 ${stream.channelTitle}: Stream verified`)
+
+        const deadline = Math.floor(Date.now() / 1000) + 2400
+        const token = normalizeAddress(config.POOL_TOKEN)
+        const addr1 = normalizeAddress(creatorAddr)
+        const addr2 = addr1.slice(0, -1) + (addr1.endsWith('e') ? 'f' : 'e')
+
+        const context = await generateMarketContext(stream.title, stream.channelTitle, 0)
+        if (!context) {
+          results.push(`\u26a0\ufe0f ${stream.channelTitle}: Failed to generate market context`)
+          continue
+        }
+
+        const matchId = `YT_${stream.videoId}`.slice(0, 31)
+        saveMarketContext(matchId, context)
+
+        const p1Tag = "YES"
+        const p2Tag = "NO"
+
+        const calldata = [
+          encodeShortString(matchId, 'match_id'),
+          encodeShortString('YOUTUBE_VISION', 'game_provider_id'),
+          token,
+          deadline.toString(),
+          addr1,
+          addr2,
+          encodeShortString(p1Tag, 'player_1_tag'),
+          encodeShortString(p2Tag, 'player_2_tag'),
+        ]
+
+        // Fire both chains in parallel — Stellar failure is non-fatal
+        const [starknetResult, stellarResult] = await Promise.allSettled([
+          executeAndWait([{
+            contractAddress: config.ESCROW_ADDRESS,
+            entrypoint: ENTRYPOINTS.createWeb2Pool,
+            calldata,
+          }]),
+          tryStellarPoolCreation(deadline),
+        ])
+
+        const txHash = starknetResult.status === 'fulfilled' ? starknetResult.value : null
+        if (!txHash) throw (starknetResult as PromiseRejectedResult).reason
+
+        const stellarResponse = stellarResult.status === 'fulfilled' ? stellarResult.value : null
+
+        // Write cross-chain pool ID mapping (computed locally to avoid Mppx fetch interference)
+        if (stellarResponse?.stellarPoolId != null) {
+          const starkPoolId = existingPools.length > 0
+            ? Math.max(...existingPools.map(p => p.pool_id)) + 1
+            : 1
+          saveStellarPoolId(starkPoolId, stellarResponse.stellarPoolId)
+        }
+
+        ytPoolsCreatedThisSession.add(streamKey)
+        created++
+        const chains = stellarResponse ? `starknet: ${txHash} | stellar: ${stellarResponse.hash}` : `tx: ${txHash}`
+        results.push(
+          `\ud83c\udfac ${stream.channelTitle}: Vision AI pool created ` +
+          `"${stream.title.slice(0, 40)}" \u2014 ${chains}`
+        )
+      } catch (err: any) {
+        results.push(`\u274c ${stream.channelTitle}: ${err?.message ?? err}`)
+      }
+    }
+
+    if (results.length === 0) return 'YouTube scan complete \u2014 no new pools to create.'
+    return `YouTube Auto-Scan (${created} pools created):\n${results.join('\n')}`
+  }
 })
 
 // -----------------------------------------------------------------------
@@ -1062,10 +1563,12 @@ const SCAN_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 async function runScanCycle() {
   console.log(`[pool-creator] ⏱ Starting scan cycle at ${new Date().toISOString()}`)
 
-  // Find the capability run functions
-  const autoScan = (agent as any)._capabilities?.find((c: any) => c.name === 'auto_scan')
-  const pistolsScan = (agent as any)._capabilities?.find((c: any) => c.name === 'auto_scan_pistols')
-  const riotScan = (agent as any)._capabilities?.find((c: any) => c.name === 'auto_scan_riot')
+  const caps = (agent as any).tools || (agent as any).capabilities || (agent as any)._capabilities || []
+  const autoScan = caps.find((c: any) => c.name === 'auto_scan')
+  const pistolsScan = caps.find((c: any) => c.name === 'auto_scan_pistols')
+  const riotScan = caps.find((c: any) => c.name === 'auto_scan_riot')
+  const twitchScan = caps.find((c: any) => c.name === 'auto_scan_twitch')
+  const ytScan = caps.find((c: any) => c.name === 'auto_scan_youtube')
 
   // 1. EGS/Budokan scan
   if (autoScan?.run) {
@@ -1094,6 +1597,26 @@ async function runScanCycle() {
       console.log(`[pool-creator] 🎮 Riot scan: ${result}`)
     } catch (err: any) {
       console.error(`[pool-creator] ❌ Riot scan error: ${err?.message ?? err}`)
+    }
+  }
+
+  // 4. Twitch stream scan
+  if (twitchScan?.run) {
+    try {
+      const result = await twitchScan.run({ args: { dryRun: false }, action: {} })
+      console.log(`[pool-creator] 📺 Twitch scan: ${result}`)
+    } catch (err: any) {
+      console.error(`[pool-creator] ❌ Twitch scan error: ${err?.message ?? err}`)
+    }
+  }
+
+  // 5. YouTube stream scan (fallback when Twitch creds unavailable)
+  if (ytScan?.run) {
+    try {
+      const result = await ytScan.run({ args: { dryRun: false }, action: {} })
+      console.log(`[pool-creator] 🎬 YouTube scan: ${result}`)
+    } catch (err: any) {
+      console.error(`[pool-creator] ❌ YouTube scan error: ${err?.message ?? err}`)
     }
   }
 

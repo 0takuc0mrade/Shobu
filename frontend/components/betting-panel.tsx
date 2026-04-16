@@ -11,6 +11,7 @@ const BetSlip = dynamic(() => import('./bet-slip').then(mod => mod.BetSlip), { s
 import { useBettingPool, usePoolOdds, useWeb2BettingPool } from '@/hooks/use-dojo-betting';
 import { web3Config } from '@/lib/web3-config';
 import { shortString } from 'starknet';
+import { useMarkets } from '@/hooks/use-markets';
 
 function BettingPanelContent() {
   const [selectedPlayer, setSelectedPlayer] = useState<'playerA' | 'playerB' | null>(null);
@@ -60,15 +61,20 @@ function BettingPanelContent() {
     }
   };
 
-  const p1Name = safeDecode(web2Pool?.player_1_tag, 'Champion (Player A)');
-  const p2Name = safeDecode(web2Pool?.player_2_tag, 'Challenger (Player B)');
+  const { getMarket } = useMarkets();
+  const matchId = `NA1_${pool?.game_id}`;
+  const marketContext = getMarket(matchId);
+  const marketTitle = marketContext?.market_title || 'Live Prediction Market';
+
+  const p1Name = safeDecode(web2Pool?.player_1_tag, 'YES');
+  const p2Name = safeDecode(web2Pool?.player_2_tag, 'NO');
 
   return (
     <div className="flex flex-col gap-4 h-full">
       {/* Odds Display */}
       <Card className="card-border bg-slate-900/50 border-slate-700/50 shrink-0">
-        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-neon-purple mt-0">Live Odds</CardTitle>
+        <CardHeader className="pb-3 flex items-start justify-between space-y-2">
+          <CardTitle className="text-neon-purple mt-0 text-sm sm:text-base leading-tight pr-2">{marketTitle}</CardTitle>
           {web2Pool && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neon-purple/10 border border-neon-purple/20 text-neon-purple text-xs font-medium tracking-wide">
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -89,9 +95,9 @@ function BettingPanelContent() {
             }`}
           >
             <div className="flex justify-between items-center">
-              <div className="text-left">
-                <p className="font-semibold text-white text-sm sm:text-base">{p1Name}</p>
-                <p className="text-xs text-gray-400 mt-1">Expected Win: High</p>
+              <div className="text-left gap-1 flex flex-col items-start">
+                <p className="font-semibold text-white text-base sm:text-lg">{p1Name}</p>
+                <p className="text-[10px] sm:text-xs text-gray-400 mt-1 uppercase tracking-wider">Outcome Probability</p>
               </div>
               <div className="text-right">
                 <p className="text-xl sm:text-2xl font-bold text-neon-purple">
@@ -113,9 +119,9 @@ function BettingPanelContent() {
             }`}
           >
             <div className="flex justify-between items-center">
-              <div className="text-left">
-                <p className="font-semibold text-white text-sm sm:text-base">{p2Name}</p>
-                <p className="text-xs text-gray-400 mt-1">Expected Win: Underdog</p>
+              <div className="text-left gap-1 flex flex-col items-start">
+                <p className="font-semibold text-white text-base sm:text-lg">{p2Name}</p>
+                <p className="text-[10px] sm:text-xs text-gray-400 mt-1 uppercase tracking-wider">Outcome Probability</p>
               </div>
               <div className="text-right">
                 <p className="text-xl sm:text-2xl font-bold text-neon-blue">
