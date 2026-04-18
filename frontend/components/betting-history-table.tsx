@@ -26,6 +26,7 @@ import { sameAddress } from '@/lib/address-utils';
 import { web3Config } from '@/lib/web3-config';
 import { useMatchName } from '@/hooks/use-match-name';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useClaimRefund } from '@/hooks/use-betting-actions';
 
 interface BettingRecord {
   id: string;
@@ -34,7 +35,7 @@ interface BettingRecord {
   outcome: string;
   wager: number;
   odds: number;
-  status: 'won' | 'lost' | 'pending';
+  status: 'won' | 'lost' | 'pending' | 'cancelled';
   potential?: number;
   pool_id: string;
   game_id: string;
@@ -42,11 +43,14 @@ interface BettingRecord {
 }
 
 function BetHistoryRow({ record }: { record: BettingRecord }) {
+  const { refund, status: refundStatus } = useClaimRefund();
+
   const getStatusDisplay = (status: string) => {
     const statusMap: Record<string, { color: string; text: string }> = {
       won: { color: 'bg-chart-3/10 text-chart-3 border-chart-3/50', text: 'Won' },
       lost: { color: 'bg-red-500/10 text-red-400 border-red-500/50', text: 'Lost' },
       pending: { color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/50', text: 'Pending' },
+      cancelled: { color: 'bg-gray-500/10 text-gray-400 border-gray-500/50', text: 'Cancelled' },
     };
     return statusMap[status] || statusMap.pending;
   };
@@ -92,6 +96,15 @@ function BetHistoryRow({ record }: { record: BettingRecord }) {
             <span className="text-xs font-semibold text-yellow-400">
               {record.potential?.toFixed(2)} STRK potential
             </span>
+          )}
+          {record.status === 'cancelled' && (
+            <button 
+              className="ml-2 px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs text-white"
+              onClick={() => refund({ poolId: Number(record.pool_id) })}
+              disabled={refundStatus === 'submitting'}
+            >
+              {refundStatus === 'submitting' ? 'Claiming...' : 'Claim Refund'}
+            </button>
           )}
         </div>
       </TableCell>
@@ -144,7 +157,7 @@ export function BettingHistoryTable() {
         }
       } else if (Number(pool.status) === 2) {
         // Cancelled
-        betStatus = 'pending';
+        betStatus = 'cancelled' as any;
       }
     }
 

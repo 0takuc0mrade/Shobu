@@ -6,6 +6,67 @@ Shobu lets anyone create permissionless betting pools around on-chain game outco
 
 ---
 
+## 🌌 Stellar / Soroban Integration
+
+Shōbu runs natively on **Stellar Soroban** as a first-class deployment target alongside Starknet. The Stellar integration delivers a complete prediction market pipeline — from autonomous pool creation to settlement — with zero dependency on the Starknet indexer.
+
+### Soroban Escrow Contract
+
+The [`shobu-escrow-soroban`](src/stellar/escrow/src/lib.rs) contract implements the full betting lifecycle in Rust:
+
+| Function | Description |
+|----------|-------------|
+| `create_pool` | Create a new YES/NO prediction market |
+| `place_bet` | Bet on an outcome (token transferred to contract) |
+| `settle_pool` | Manager declares winner, protocol fee deducted |
+| `claim_winnings` | Winners claim proportional payout |
+| `cancel_pool` | Cancel an unresolvable market |
+| `claim_refund` | Full refund from cancelled pools |
+| `get_pool` / `get_bet` | Read-only queries for pool and bet state |
+
+**Storage architecture**: Admin, Manager, and PoolCounter live in instance storage (singleton config). Pool, Bet, and ProtocolFee data use persistent storage with 30-day TTL extensions, preventing the silent 64KB instance storage limit from crashing the contract as pools accumulate.
+
+### 🌱 Ghost Seeding — Autonomous Liquidity
+
+The AI agent swarm autonomously seeds every new Soroban pool with balanced YES/NO liquidity using two keypairs:
+- **Primary agent keypair** → bets YES (predicted_winner = player1)
+- **Derived ghost keypair** (SHA-256 of agent secret) → bets NO (predicted_winner = player2)
+
+This prevents cold-start 0/0 pools and gives immediate odds for the frontend UI.
+
+### 🔭 Freighter Wallet
+
+Stellar users connect via [Freighter](https://www.freighter.app/) browser extension. The frontend auto-detects Freighter, builds Soroban transactions client-side, and uses Freighter's `signTransaction()` for user signatures.
+
+### 🤖 Machine Payments (MPP)
+
+The agent uses [Stellar MPP](https://www.stellar.org/blog/developers/introducing-mpp) (`mppx` + `@stellar/mpp`) to automatically handle 402 Payment Required responses from paid oracle services — enabling fully autonomous machine-to-machine settlement.
+
+### Soroban Architecture
+
+```
+src/stellar/escrow/       # Soroban smart contract (Rust)
+agents/src/shared/
+  ├── stellar-adapter.ts     # Agent → Soroban transaction builder
+  └── soroban-indexer.ts     # Native Soroban pool reader (RPC)
+frontend/
+  ├── lib/stellar-pool-reader.ts   # Frontend Soroban data fetcher
+  └── hooks/use-stellar-portfolio.ts  # Portfolio hook for Stellar bets
+```
+
+### Deploy on Soroban
+
+```bash
+cd src/stellar/escrow
+cargo build --target wasm32-unknown-unknown --release
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/shobu_escrow_soroban.wasm \
+  --source <YOUR_SECRET_KEY> \
+  --network testnet
+```
+
+---
+
 ## Architecture
 
 ```

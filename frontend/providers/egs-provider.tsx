@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo } from "react";
 import { useAllBettingPools } from "@/hooks/use-dojo-betting";
 import { useEgsDiscovery } from "@/hooks/use-egs-discovery";
+import { useSgsDiscovery } from "@/hooks/use-sgs-discovery";
 import { useEgsEventStream } from "@/hooks/use-egs-event-stream";
 import { useEgsSessionTokens } from "@/hooks/use-egs-session-tokens";
 import { EgsGameWithPool, EgsLiveEvent, EgsSessionToken } from "@/lib/egs-types";
@@ -23,8 +24,20 @@ const EgsContext = createContext<EgsContextValue | null>(null);
 
 export function EgsProvider({ children }: { children: React.ReactNode }) {
   const { games, loading: gamesLoading, error: gamesError } = useEgsDiscovery();
+  const { games: sgsGames, loading: sgsLoading, error: sgsError } = useSgsDiscovery();
   const { pools, web2Pools = [], loading: poolsLoading, error: poolsError } = useAllBettingPools();
   const { address } = useStarkSdk();
+
+  // Merge EGS + SGS game lists (deduplicated by id)
+  const allDiscoveredGames = useMemo(() => {
+    const merged = [...games];
+    for (const sgs of sgsGames) {
+      if (!merged.some(g => g.id === sgs.id)) {
+        merged.push(sgs);
+      }
+    }
+    return merged;
+  }, [games, sgsGames]);
 
   const {
     eventsByWorld,
@@ -50,6 +63,8 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
   });
 
   const gamesWithPools = useMemo<EgsGameWithPool[]>(() => {
+    // Use merged games list (EGS + SGS)
+    const sourceGames = allDiscoveredGames;
     // Helper to decode felt short strings to text
     const decodeHexStr = (hex?: string) => {
       if (!hex || hex === '0x0') return 'Unknown'
@@ -68,7 +83,7 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
     };
 
     // 1. Map existing Denshokan games
-    const mapped = games.map((game) => {
+    const mapped = sourceGames.map((game) => {
       // Sort pools descending to get the newest duplicate pool if available
       const newestPools = [...pools].sort((a, b) => Number(b.pool_id) - Number(a.pool_id));
       const pool =
@@ -148,15 +163,16 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
     }
 
     return mapped;
-  }, [games, pools, web2Pools]);
+  }, [allDiscoveredGames, pools, web2Pools]);
 
   const value = useMemo<EgsContextValue>(
     () => ({
       games: gamesWithPools,
       loading:
         gamesLoading ||
+        sgsLoading ||
         (gamesWithPools.length > 0 && (poolsLoading || eventsLoading || sessionsLoading)),
-      error: gamesError || poolsError || eventsError || sessionsError,
+      error: gamesError || poolsError || eventsError || sessionsError || sgsError,
       eventsByWorld,
       lastSeenAtByWorld,
       sessionTokensByWorld,
@@ -164,10 +180,12 @@ export function EgsProvider({ children }: { children: React.ReactNode }) {
     [
       gamesWithPools,
       gamesLoading,
+      sgsLoading,
       poolsLoading,
       eventsLoading,
       sessionsLoading,
       gamesError,
+      sgsError,
       poolsError,
       eventsError,
       sessionsError,

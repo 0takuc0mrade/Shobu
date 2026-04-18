@@ -2,9 +2,10 @@
 
 import { useMemo } from 'react'
 import { TopNavBar } from '@/components/top-nav-bar'
-import { Wallet, Settings, Terminal, LineChart, Activity, TrendingUp, Link2, Download, PlusSquare, Network, Coins } from 'lucide-react'
+import { Wallet, Settings, Terminal, LineChart, Activity, TrendingUp, Link2, Download, PlusSquare, Network, Coins, Star } from 'lucide-react'
 import { useStarkSdk } from '@/providers/stark-sdk-provider'
 import { useAllBettingPools, useUserBets } from '@/hooks/use-dojo-betting'
+import { useStellarPortfolio } from '@/hooks/use-stellar-portfolio'
 import { formatUnits } from '@/lib/token-utils'
 import { resolveTokenSymbol, resolveTokenDecimals } from '@/lib/token-formatters'
 import { usePrivyStatus } from '@/providers/privy-status-context'
@@ -31,7 +32,14 @@ export default function PortfolioPage() {
   const { bets, loading: betsLoading } = useUserBets(address)
   const { pools, loading: poolsLoading } = useAllBettingPools()
 
-  // Compute portfolio stats from user bets + pools
+  // Stellar portfolio data
+  const {
+    stellarBets,
+    stellarPools,
+    loading: stellarLoading,
+  } = useStellarPortfolio(privyStellarAddress)
+
+  // Compute Starknet portfolio stats from user bets + pools
   const stats = useMemo(() => {
     if (!bets.length || !pools.length) return { netValue: '0', totalPnl: '0', winRate: 0, activeBets: [], settledBets: [] }
 
@@ -51,7 +59,6 @@ export default function PortfolioPage() {
         settled++
         if (pool.winning_player === bet.predicted_winner) {
           wins++
-          // Simplified payout estimation
           const totalOnWinner = BigInt(pool.winning_total ?? pool.total_on_p1 ?? '1')
           const totalPot = BigInt(pool.total_pot ?? '0')
           if (totalOnWinner > 0n) {
@@ -74,7 +81,45 @@ export default function PortfolioPage() {
     }
   }, [bets, pools])
 
-  const loading = betsLoading || poolsLoading
+  // Compute Stellar portfolio stats
+  const stellarStats = useMemo(() => {
+    const activeStellarBets = stellarBets.filter(b => {
+      const pool = stellarPools.find(p => p.poolId === b.poolId)
+      return pool && pool.status === 0 // Open
+    })
+    const settledStellarBets = stellarBets.filter(b => {
+      const pool = stellarPools.find(p => p.poolId === b.poolId)
+      return pool && pool.status !== 0 // Not Open
+    })
+    let totalStaked = 0n
+    let totalWon = 0n
+    let wins = 0
+    for (const bet of stellarBets) {
+      totalStaked += bet.amount
+      const pool = stellarPools.find(p => p.poolId === bet.poolId)
+      if (pool?.status === 1 && pool.player1 === bet.predictedWinner) {
+        wins++
+        const totalOnWinner = bet.predictedWinner === pool.player1
+          ? pool.totalOnP1 : pool.totalOnP2
+        if (totalOnWinner > 0n) {
+          totalWon += (bet.amount * pool.totalPot) / totalOnWinner
+        }
+      }
+    }
+    return {
+      totalStaked: formatPot(totalStaked.toString(), 7),
+      activeBets: activeStellarBets,
+      settledBets: settledStellarBets,
+      wins,
+      totalWon: formatPot(totalWon.toString(), 7),
+    }
+  }, [stellarBets, stellarPools])
+
+  // Combined stats across all chains
+  const combinedBetCount = bets.length + stellarBets.length
+  const combinedActiveCount = stats.activeBets.length + stellarStats.activeBets.length
+
+  const loading = betsLoading || poolsLoading || stellarLoading
 
   return (
     <div className="flex h-screen bg-surface text-foreground font-sans overflow-hidden flex-col">
@@ -231,7 +276,8 @@ export default function PortfolioPage() {
                           </div>
                           <div className="font-headline text-3xl font-bold tracking-tighter text-white">{stats.netValue}</div>
                           <div className="mt-4 flex items-center gap-2">
-                            <span className="text-xs font-mono text-[#dcb8ff]">{bets.length} bets</span>
+                            <span className="text-xs font-mono text-[#dcb8ff]">{combinedBetCount} bets</span>
+                            {stellarBets.length > 0 && <span className="text-[9px] font-mono text-blue-400">({stellarBets.length} Stellar)</span>}
                           </div>
                         </div>
                         <div className="bg-surface-container-low p-6 relative overflow-hidden">
@@ -258,7 +304,7 @@ export default function PortfolioPage() {
                       </div>
 
                       {/* Chain Split */}
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-3 gap-6">
                         <div className="bg-surface-container-low p-8 border-l border-primary/20 hover:border-primary/50 transition-colors">
                           <div className="flex items-center gap-3 mb-6">
                             <div className="w-8 h-8 bg-[#353534] flex items-center justify-center"><Link2 className="w-4 h-4 text-primary" /></div>
@@ -290,6 +336,34 @@ export default function PortfolioPage() {
                             </div>
                           </div>
                         </div>
+                        <div className="bg-surface-container-low p-8 border-l border-blue-400/20 hover:border-blue-400/50 transition-colors">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-8 h-8 bg-[#353534] flex items-center justify-center"><Star className="w-4 h-4 text-blue-400" /></div>
+                            <h2 className="font-headline text-lg font-bold tracking-tighter text-white uppercase">Stellar / Soroban</h2>
+                          </div>
+                          {isFreighterConnected && privyStellarAddress ? (
+                            <div className="space-y-4 font-mono text-xs">
+                              <div className="flex justify-between items-center py-3 border-b border-[#353534]/50">
+                                <span className="text-[#cfc2d7]">Active Bets</span><span className="text-white">{stellarStats.activeBets.length} positions</span>
+                              </div>
+                              <div className="flex justify-between items-center py-3 border-b border-[#353534]/50">
+                                <span className="text-[#cfc2d7]">Total Staked</span><span className="text-white">{stellarStats.totalStaked} XLM</span>
+                              </div>
+                              <div className="flex justify-between items-center py-3 border-b border-[#353534]/50">
+                                <span className="text-[#cfc2d7]">Settled</span><span className="text-blue-400">{stellarStats.settledBets.length} pools</span>
+                              </div>
+                              <div className="flex justify-between items-center py-3">
+                                <span className="text-[#cfc2d7]">Address</span><span className="text-white">{privyStellarAddress.slice(0, 4)}…{privyStellarAddress.slice(-4)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 font-mono text-xs">
+                              <div className="flex justify-between items-center py-3">
+                                <span className="text-[#cfc2d7]">Status</span><span className="text-gray-400">Not connected</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Activity Table */}
@@ -298,12 +372,13 @@ export default function PortfolioPage() {
                           <h2 className="font-headline text-lg font-bold tracking-tighter text-white uppercase">Recent Activity</h2>
                           <span className="text-[10px] text-primary font-headline tracking-widest uppercase flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                            {bets.length} total bets
+                            {combinedBetCount} total bets
                           </span>
                         </div>
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="bg-surface-container-highest/30 tracking-widest text-[#cfc2d7] uppercase font-headline text-[10px]">
+                              <th className="px-6 py-4 font-semibold">Chain</th>
                               <th className="px-6 py-4 font-semibold">Pool</th>
                               <th className="px-6 py-4 font-semibold">Predicted</th>
                               <th className="px-6 py-4 font-semibold">Amount</th>
@@ -311,12 +386,14 @@ export default function PortfolioPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#353534]/30 font-mono text-xs">
-                            {bets.slice(0, 10).map(bet => {
+                            {/* Starknet Bets */}
+                            {bets.slice(0, 8).map(bet => {
                               const pool = pools.find(p => p.pool_id === bet.pool_id)
                               const isSettled = pool?.winning_player
                               const isWin = isSettled && pool.winning_player === bet.predicted_winner
                               return (
-                                <tr key={`${bet.pool_id}-${bet.bettor}`} className="hover:bg-white/5 transition-colors">
+                                <tr key={`stk-${bet.pool_id}-${bet.bettor}`} className="hover:bg-white/5 transition-colors">
+                                  <td className="px-6 py-4"><span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] font-bold uppercase">Starknet</span></td>
                                   <td className="px-6 py-4 text-gray-300">Pool #{bet.pool_id}</td>
                                   <td className="px-6 py-4 text-white">{bet.predicted_winner?.slice(0, 8)}…</td>
                                   <td className="px-6 py-4 text-white">
@@ -345,8 +422,33 @@ export default function PortfolioPage() {
                                 </tr>
                               )
                             })}
-                            {bets.length === 0 && (
-                              <tr><td colSpan={4} className="px-6 py-8 text-center text-on-surface-variant text-xs uppercase tracking-widest">No betting history found</td></tr>
+                            {/* Stellar Bets */}
+                            {stellarBets.slice(0, 6).map(bet => {
+                              const sPool = stellarPools.find(p => p.poolId === bet.poolId)
+                              const isSettled = sPool?.status === 1
+                              const isWin = isSettled && sPool?.player1 === bet.predictedWinner
+                              return (
+                                <tr key={`xlm-${bet.poolId}-${bet.predictedWinner}`} className="hover:bg-white/5 transition-colors">
+                                  <td className="px-6 py-4"><span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold uppercase">Stellar</span></td>
+                                  <td className="px-6 py-4 text-gray-300">Pool #{bet.poolId}</td>
+                                  <td className="px-6 py-4 text-white">{bet.predictedWinner?.slice(0, 8)}…</td>
+                                  <td className="px-6 py-4 text-white">
+                                    {formatPot(bet.amount.toString(), 7)} XLM
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    {isSettled ? (
+                                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase font-headline ${isWin ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-400'}`}>
+                                        {isWin ? 'Won' : 'Lost'}
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase font-headline">Active</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                            {combinedBetCount === 0 && (
+                              <tr><td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant text-xs uppercase tracking-widest">No betting history found</td></tr>
                             )}
                           </tbody>
                         </table>

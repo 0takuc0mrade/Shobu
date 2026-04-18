@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Terminal, LineChart, Wallet, Settings, FileText, HelpCircle, Activity, Send, Radio, Coins, TrendingUp, Loader2 } from 'lucide-react'
 import { TopNavBar } from '@/components/top-nav-bar'
 import { useEgs } from '@/providers/egs-provider'
 import { useStarkSdk } from '@/providers/stark-sdk-provider'
 import { usePrivyStatus } from '@/providers/privy-status-context'
 import { useBettingPool, usePoolOdds, useWeb2BettingPool } from '@/hooks/use-dojo-betting'
+import { useStellarPoolOverlay } from '@/hooks/use-stellar-pool-overlay'
 import { usePlaceBet } from '@/hooks/use-betting-actions'
 import { useMatchName } from '@/hooks/use-match-name'
 import { useMarkets } from '@/hooks/use-markets'
@@ -89,6 +90,79 @@ function MarketCard({
 }
 
 // ---------------------------------------------------------------------------
+// Oracle Chat (wired to analyst agent)
+// ---------------------------------------------------------------------------
+function OracleChat({ poolId, chainType, stellarPoolData }: { poolId: number; chainType: string | null; stellarPoolData?: any }) {
+  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState<{ role: 'user' | 'oracle'; text: string }[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const handleSend = useCallback(async () => {
+    const msg = input.trim()
+    if (!msg || loading) return
+    setInput('')
+    setMessages(prev => [...prev, { role: 'user', text: msg }])
+    setLoading(true)
+    try {
+      const res = await fetch('/api/agents/analyst', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poolId, message: msg, chainType, stellarPoolData }),
+      })
+      const data = await res.json()
+      const reply = typeof data.result === 'string' ? data.result : data.error ?? 'No response'
+      setMessages(prev => [...prev, { role: 'oracle', text: reply }])
+    } catch (err: any) {
+      setMessages(prev => [...prev, { role: 'oracle', text: `Error: ${err?.message ?? 'Network failure'}` }])
+    } finally {
+      setLoading(false)
+    }
+  }, [input, loading, poolId, chainType, stellarPoolData])
+
+  return (
+    <div className="mt-auto pt-6 border-t border-surface-container-low flex flex-col">
+      <div className="flex items-center gap-2 mb-3">
+        <Send className="w-3 h-3 text-primary" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Oracle Chat</span>
+      </div>
+      {messages.length > 0 && (
+        <div className="max-h-40 overflow-y-auto space-y-2 mb-3 pr-1">
+          {messages.map((m, i) => (
+            <div key={i} className={`text-[10px] font-mono ${m.role === 'user' ? 'text-primary' : 'text-on-surface-variant'}`}>
+              <span className="font-bold uppercase mr-1">{m.role === 'user' ? 'You:' : '⚡ Oracle:'}</span>
+              {m.text}
+            </div>
+          ))}
+          {loading && (
+            <div className="text-[10px] font-mono text-on-surface-variant animate-pulse">
+              ⚡ Oracle: Thinking...
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          className="flex-1 bg-surface-container-low border-none text-[10px] py-2 px-3 outline-none focus:ring-1 focus:ring-primary/30 text-white"
+          placeholder="Type a message..."
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          disabled={loading}
+        />
+        <button
+          onClick={handleSend}
+          disabled={loading}
+          className="bg-surface-container-highest p-2 hover:bg-surface-container-lowest transition-colors disabled:opacity-50"
+        >
+          <Send className="w-4 h-4 text-on-surface-variant" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 export default function Dashboard() {
@@ -116,11 +190,11 @@ export default function Dashboard() {
   // Auto-select first bettable pool if none selected
   const activePoolId = selectedPoolId ?? (bettableGames[0]?.pool?.pool_id ? Number(bettableGames[0].pool.pool_id) : web3Config.activePoolId)
 
-  const { data: selectedPool, loading: poolLoading } = useBettingPool(activePoolId)
-  const odds = usePoolOdds(activePoolId)
+  const { data: _starknetPool, loading: poolLoading } = useBettingPool(activePoolId)
+  const _starknetOdds = usePoolOdds(activePoolId)
   const { matchName: selectedMatchName } = useMatchName(
     String(activePoolId),
-    String(selectedPool?.game_id ?? '0'),
+    String(_starknetPool?.game_id ?? '0'),
     'web2'
   )
   const { data: selectedWeb2Pool } = useWeb2BettingPool(activePoolId)
@@ -131,6 +205,29 @@ export default function Dashboard() {
   const { placeBet, status: betStatus, error: betError } = usePlaceBet()
   const [wagerAmount, setWagerAmount] = useState('100.00')
   const [predictedWinner, setPredictedWinner] = useState<'p1' | 'p2'>('p1')
+
+  // ── Stellar Soroban pool overlay ──
+  // When on Stellar, reads pool state directly from Soroban contract
+  // and overlays it on the Starknet pool data for display
+  const [stellarRefreshKey, setStellarRefreshKey] = useState(0)
+  const stellarOverlay = useStellarPoolOverlay(activePoolId, chainType, stellarRefreshKey)
+
+  const selectedPool = useMemo(() => {
+    if (stellarOverlay.data && _starknetPool) {
+      return { ..._starknetPool, ...stellarOverlay.data }
+    }
+    return _starknetPool
+  }, [_starknetPool, stellarOverlay.data])
+
+  const odds = stellarOverlay.odds ?? _starknetOdds
+
+  // Refresh Soroban pool data after successful Stellar bet
+  useEffect(() => {
+    if (betStatus === 'success' && chainType === 'stellar') {
+      const timer = setTimeout(() => setStellarRefreshKey(k => k + 1), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [betStatus, chainType])
 
   const selectedOdds = predictedWinner === 'p1' ? odds.p1 : odds.p2
   const potentialReturn = useMemo(() => {
@@ -435,19 +532,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Chat Module */}
-              <div className="mt-auto pt-6 border-t border-surface-container-low">
-                <div className="flex items-center gap-2 mb-3">
-                  <Send className="w-3 h-3 text-primary" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Oracle Chat</span>
-                </div>
-                <div className="flex gap-2">
-                  <input className="flex-1 bg-surface-container-low border-none text-[10px] py-2 px-3 outline-none focus:ring-1 focus:ring-primary/30 text-white" placeholder="Type a message..." type="text" />
-                  <button className="bg-surface-container-highest p-2 hover:bg-surface-container-lowest transition-colors">
-                    <Send className="w-4 h-4 text-on-surface-variant" />
-                  </button>
-                </div>
-              </div>
+              {/* Oracle Chat Module */}
+              <OracleChat poolId={activePoolId} chainType={chainType} stellarPoolData={stellarOverlay.data} />
             </div>
           </aside>
         </main>

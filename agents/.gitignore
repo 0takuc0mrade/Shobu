@@ -4,3 +4,4 @@ dist/
 .openserv.json
 .cartridge-agent-session/
 .codex/
+test_images/

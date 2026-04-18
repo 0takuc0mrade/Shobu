@@ -57,7 +57,7 @@ async function tryStellarPoolCreation(deadline: number): Promise<{ hash: string;
   const config = getConfig()
   if (!config.STELLAR_PRIVATE_KEY) return null
 
-  const escrowId = process.env.STELLAR_ESCROW_CONTRACT_ID || 'CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M'
+  const escrowId = process.env.STELLAR_ESCROW_CONTRACT_ID || 'CAVMUYF3S54QSPSNWN5LUI3YEPRFIRPFWSULNIWBSHA4IPPPGSSCCOPB'
 
   try {
     const stellarAdapter = new StellarAgentAdapter(config.STELLAR_PRIVATE_KEY)
@@ -71,6 +71,18 @@ async function tryStellarPoolCreation(deadline: number): Promise<{ hash: string;
       deadline
     )
     console.log(`[stellar] ✅ Pool created on Stellar — tx: ${response.hash}, stellarPoolId: ${response.stellarPoolId}`)
+
+    if (response.stellarPoolId !== null) {
+      await stellarAdapter.ghostSeedStellarPool(
+        STELLAR_NETWORK,
+        escrowId,
+        response.stellarPoolId,
+        STELLAR_PLACEHOLDER_P1,
+        STELLAR_PLACEHOLDER_P2,
+        config.GHOST_SEED_AMOUNT
+      )
+    }
+
     return response
   } catch (err: any) {
     console.error(`[stellar] ⚠️ Stellar pool creation failed (non-fatal): ${err?.message ?? err}`)

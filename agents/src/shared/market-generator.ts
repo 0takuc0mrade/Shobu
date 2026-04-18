@@ -29,46 +29,80 @@ Example:
   "resolution_criteria": "Resolves to YES if the 'Victory' screen appears. Resolves to NO if 'Defeat' appears or the stream ends before a conclusion."
 }`
 
-  const apiKey = process.env.GOOGLE_AI_API_KEY
-  if (!apiKey) {
-    console.warn('[market-generator] GOOGLE_AI_API_KEY not found')
-    return null
-  }
+  let resultParsed: MarketContext | null = null
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'OBJECT',
-              properties: {
-                market_title: { type: 'STRING' },
-                resolution_criteria: { type: 'STRING' },
+  // 1. Try Gemini first
+  const geminiApiKey = process.env.GOOGLE_AI_API_KEY
+  if (geminiApiKey) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  market_title: { type: 'STRING' },
+                  resolution_criteria: { type: 'STRING' },
+                },
+                required: ['market_title', 'resolution_criteria'],
               },
-              required: ['market_title', 'resolution_criteria'],
             },
-          },
-        }),
-      }
-    )
+          }),
+        }
+      )
 
-    if (!response.ok) {
-      console.error('[market-generator] Gemini API error', await response.text())
-      return null
+      if (response.ok) {
+        const result = await response.json()
+        const text = result.candidates[0].content.parts[0].text.trim()
+        resultParsed = JSON.parse(text)
+      } else {
+        console.warn(`[market-generator] Gemini API error: ${response.status} ${response.statusText}`)
+      }
+    } catch (err: any) {
+      console.warn(`[market-generator] Gemini network error: ${err.message}`)
     }
-    const result = await response.json()
-    let text = result.candidates[0].content.parts[0].text.trim()
-    return JSON.parse(text)
-  } catch (err) {
-    console.error('[market-generator] Error generating context:', err)
-    return null
   }
+
+  if (resultParsed) return resultParsed
+
+  // 2. Fallback to Groq if Gemini fails (e.g. 503 high demand)
+  console.log('[market-generator] Gemini unavailable. Falling back to Groq (Llama-3.3)...')
+  const groqApiKey = process.env.GROQ_API_KEY
+  if (groqApiKey) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${groqApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' }
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        const text = result.choices[0].message.content.trim()
+        return JSON.parse(text)
+      } else {
+        console.error(`[market-generator] Groq API error: ${response.status} ${await response.text()}`)
+      }
+    } catch (err: any) {
+      console.error(`[market-generator] Groq network error: ${err.message}`)
+    }
+  }
+
+  console.error('[market-generator] All LLM providers failed.')
+  return null
 }
 
 export function saveMarketContext(matchId: string, context: MarketContext) {

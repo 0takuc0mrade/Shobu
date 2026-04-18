@@ -5,6 +5,7 @@
   "private": true,
   "description": "OpenServ AI agents for the Shobu betting protocol",
   "scripts": {
+    "start": "tsx src/pool-creator/agent.ts",
     "start:pool-creator": "tsx src/pool-creator/agent.ts",
     "start:settler": "tsx src/settler/agent.ts",
     "start:analyst": "tsx src/analyst/agent.ts",

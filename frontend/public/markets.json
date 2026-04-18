@@ -46,5 +46,73 @@
   "YT_qLnmHFxgwZo": {
     "market_title": "Will the streamer win their current Counter Strike 2 Premier Rank match?",
     "resolution_criteria": "Resolves to YES if the streamer's team achieves victory in the current Counter Strike 2 Premier Rank match, as indicated by the in-game 'Victory' screen or scoreboard. Resolves to NO if the streamer's team experiences a 'Defeat' screen, loses the match, or if the stream ends before a clear match outcome is displayed."
+  },
+  "YT_-Z5bAXXc7jM": {
+    "market_title": "Will TT win their match against OMG in the LPL 2026 Split 2?",
+    "resolution_criteria": "Resolves to YES if Team Titans (TT) are declared the winner of the match against OMG. Resolves to NO if OMG is declared the winner or the match is not completed."
+  },
+  "YT_PBjqmWML_RU": {
+    "market_title": "Will the Dota 2 stream reach 10 viewers?",
+    "resolution_criteria": "Resolves to YES if the viewer count reaches 10 or more at any point during the stream. Resolves to NO if the stream ends before reaching this threshold."
+  },
+  "YT_5PimbvrgM9w": {
+    "market_title": "Will Angel Heart Gaming reach 10 concurrent viewers during the current Valorant stream?",
+    "resolution_criteria": "Resolves to YES if the viewer count reaches 10 or more at any point during the stream. Resolves to NO if the stream ends before reaching 10 viewers."
+  },
+  "YT_vwAi2xr5dTM": {
+    "market_title": "Will WackyDipu win their current Valorant match in the Semi-Finals Tournament?",
+    "resolution_criteria": "Resolves to YES if the 'Victory' screen is displayed on stream. Resolves to NO if the 'Defeat' screen is displayed or if the stream ends before a match conclusion."
+  },
+  "YT_rkpRLsaWZwM": {
+    "market_title": "Will the streamer 'Солевой Сомелье' win their current DOTA 2 match?",
+    "resolution_criteria": "Resolves to YES if the 'Victory' screen appears in-game. Resolves to NO if the 'Defeat' screen appears or if the stream ends before a match is concluded."
+  },
+  "YT_hKNGl-xQOSk": {
+    "market_title": "Will the streamer 'Солевой Сомелье' win their current Dota 2 match?",
+    "resolution_criteria": "Resolves to YES if the game ends with a 'Victory' screen or the ancient is destroyed. Resolves to NO if the 'Defeat' screen appears or the stream ends before the match concludes."
+  },
+  "YT_KxHXxxTIhN4": {
+    "market_title": "Will the stream 'Pejuang MMR Ijo' reach 10 viewers concurrently?",
+    "resolution_criteria": "Resolves to YES if the viewer count reaches 10 or more at any point during the stream. Resolves to NO if the stream ends before the viewer count hits 10."
+  },
+  "YT_4tQ7Ed4pglw": {
+    "market_title": "Will MOUZ win the match against Spirit at IEM Rio 2026?",
+    "resolution_criteria": "Resolves to YES if MOUZ wins the map or series as officially recorded in the tournament results. Resolves to NO if Spirit wins or if the match is cancelled."
+  },
+  "YT_dlc-iGOc9Ds": {
+    "market_title": "Will MOUZ win the match against Spirit at IEM RIO 2026?",
+    "resolution_criteria": "Resolves to YES if MOUZ wins the series. Resolves to NO if Spirit wins the series or if the match is abandoned/cancelled."
+  },
+  "YT_qbESzRTVLRM": {
+    "market_title": "Will Wasted Gaming reach 10 viewers on their current stream?",
+    "resolution_criteria": "Resolves to YES if the viewers count reaches 10 or more at any point during the stream. Resolves to NO if the stream ends before this milestone is reached."
+  },
+  "YT_gNkQJdp_JQc": {
+    "market_title": "Will Bilibili Gaming (BLG) win their series against Invictus Gaming (IG) in LPL 2026 Split 2?",
+    "resolution_criteria": "Resolves to YES if Bilibili Gaming (BLG) secures the majority of wins in their best-of-three series against Invictus Gaming (IG) during the broadcast. Resolves to NO if Invictus Gaming (IG) secures the majority of wins in the series, or if the series is not definitively concluded on stream."
+  },
+  "YT_erK1iIYSbZM": {
+    "market_title": "Will the streamer's team win their current Valorant competitive match?",
+    "resolution_criteria": "Resolves to YES if the final score screen clearly displays 'Victory' for the streamer's team in the current Valorant competitive match. Resolves to NO if the final score screen displays 'Defeat' for the streamer's team, or if the stream ends before the conclusion of the match, or if the outcome cannot be determined from the stream."
+  },
+  "YT_-D4vbO1cQ8g": {
+    "market_title": "Will Team Yandex win their PGL Wallachia Season 8 Group Stage match against Team Falcons?",
+    "resolution_criteria": "Resolves to YES if Team Yandex wins their PGL Wallachia Season 8 Group Stage match against Team Falcons. Resolves to NO if Team Falcons wins."
+  },
+  "YT_5Z_mNTY9ePo": {
+    "market_title": "Will JDG win their VALORANT Champions Tour CN Stage 1 Seeds Deciders match against EDG?",
+    "resolution_criteria": "Resolves to YES if JDG wins the best-of-X series against EDG as per official VCT CN results. Resolves to NO if EDG wins the best-of-X series against JDG. If the match is postponed, cancelled, or no clear winner is declared within 24 hours of the scheduled start time, the market will resolve to NO."
+  },
+  "YT_Xb7-kVss9-c": {
+    "market_title": "Will NixyExE and his team win their current Valorant match?",
+    "resolution_criteria": "Resolves to YES if NixyExE's team achieves 'Victory' in their current Valorant match. Resolves to NO if NixyExE's team achieves 'Defeat' or the stream ends before the match concludes."
+  },
+  "YT_mCRPwE0hxVo": {
+    "market_title": "Will Falcons win their CS2 match against Spirit at IEM RIO 2026?",
+    "resolution_criteria": "Resolves to YES if Falcons win the overall CS2 match against Spirit. Resolves to NO if Spirit wins the overall CS2 match or if the match is cancelled."
+  },
+  "YT_bA9S5aD6N1U": {
+    "market_title": "Will Tundra esports win their PGL Wallachia Season 8 Group Stage match against HEROIC?",
+    "resolution_criteria": "Resolves to YES if Tundra esports wins their Group Stage Round 1 match against HEROIC in PGL Wallachia Season 8. Resolves to NO if HEROIC wins the match. Resolution will be based on the official PGL Wallachia Season 8 results. If the match is cancelled or not completed, this market will resolve 50/50."
   }
 }

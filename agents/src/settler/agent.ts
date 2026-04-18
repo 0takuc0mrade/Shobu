@@ -347,6 +347,33 @@ agent.addCapability({
         continue
       }
 
+      const poolDeadline = typeof pool.deadline === 'string' && pool.deadline.startsWith('0x') ? parseInt(pool.deadline, 16) : Number(pool.deadline)
+      const isPastDeadline = (Date.now() / 1000) > poolDeadline
+      const isOneSided = BigInt(pool.total_on_p1 || 0) === 0n || BigInt(pool.total_on_p2 || 0) === 0n
+
+      if (isPastDeadline && isOneSided) {
+        const call = {
+          contractAddress: config.ESCROW_ADDRESS,
+          entrypoint: ENTRYPOINTS.cancelPool,
+          calldata: [poolId.toString()],
+        }
+        const wouldSucceed = await simulateCall([call])
+        if (!wouldSucceed) {
+          cooldown.markFailed(poolId)
+          simFailed++
+          continue
+        }
+        try {
+          const txHash = await executeAndWait([call])
+          cooldown.clear(poolId)
+          results.push(`Cancelled pool #${poolId} due to one-sided liquidity at deadline — tx: ${txHash}`)
+        } catch (err: any) {
+          cooldown.markFailed(poolId)
+          results.push(`Pool #${poolId} cancel error: ${err?.message ?? String(err)}`)
+        }
+        continue
+      }
+
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
         if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
@@ -394,9 +421,13 @@ Example:
               continue
             }
             if (!consensus.verdict!.resolved) {
-              // Not failed, just not ready
-              cooldown.markFailed(poolId) // Put on cooldown so we don't spam it
-              results.push(`Pool #${poolId} Vision Oracle — event still ongoing`)
+              const txHash = await executeAndWait([{
+                contractAddress: config.ESCROW_ADDRESS,
+                entrypoint: ENTRYPOINTS.cancelPool,
+                calldata: [poolId.toString()],
+              }])
+              cooldown.clear(poolId)
+              results.push(`🚨 Vision AI pool #${poolId} inconclusive — Cancelled tx: ${txHash}`)
               continue
             }
 
@@ -519,6 +550,33 @@ async function runSettleCycle() {
         continue
       }
 
+      const poolDeadline = typeof pool.deadline === 'string' && pool.deadline.startsWith('0x') ? parseInt(pool.deadline, 16) : Number(pool.deadline)
+      const isPastDeadline = (Date.now() / 1000) > poolDeadline
+      const isOneSided = BigInt(pool.total_on_p1 || 0) === 0n || BigInt(pool.total_on_p2 || 0) === 0n
+
+      if (isPastDeadline && isOneSided) {
+        const call = {
+          contractAddress: config.ESCROW_ADDRESS,
+          entrypoint: ENTRYPOINTS.cancelPool,
+          calldata: [poolId.toString()],
+        }
+        const wouldSucceed = await simulateCall([call])
+        if (!wouldSucceed) {
+          cooldown.markFailed(poolId)
+          simFailed++
+          continue
+        }
+        try {
+          const txHash = await executeAndWait([call])
+          cooldown.clear(poolId)
+          settled++
+          console.log(`[settler] ✅ Cancelled pool #${poolId} (one-sided liquidity at deadline) — tx: ${txHash}`)
+        } catch (err: any) {
+          cooldown.markFailed(poolId)
+        }
+        continue
+      }
+
       let call: { contractAddress: string; entrypoint: string; calldata: string[] }
       try {
         if (Number(pool.settlement_mode) === SETTLEMENT_MODE.VISION_AI) {
@@ -558,7 +616,14 @@ Example:
               continue
             }
             if (!consensus.verdict!.resolved) {
-              cooldown.markFailed(poolId)
+              const txHash = await executeAndWait([{
+                contractAddress: config.ESCROW_ADDRESS,
+                entrypoint: ENTRYPOINTS.cancelPool,
+                calldata: [poolId.toString()],
+              }])
+              cooldown.clear(poolId)
+              settled++
+              console.log(`[settler] 🚨 Vision AI pool #${poolId} inconclusive — Cancelled tx: ${txHash}`)
               continue
             }
             const winner = consensus.verdict!.outcome === 'YES' ? 1 : 2

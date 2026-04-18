@@ -393,17 +393,128 @@ export async function captureStreamFrames(
 // -----------------------------------------------------------------------
 
 /**
+ * Check if Puppeteer/Chrome is available on this platform.
+ * Returns false on Android/Termux where Chrome can't be installed.
+ */
+function isPuppeteerAvailable(): boolean {
+  const candidates = [
+    process.env.CHROME_EXECUTABLE_PATH,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+  ].filter(Boolean) as string[]
+
+  try {
+    const fs = require('fs')
+    return candidates.some(p => fs.existsSync(p))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Fetches a live thumbnail from a Twitch or YouTube URL via their APIs.
+ * This is the headless fallback when Puppeteer/Chrome is not available
+ * (e.g. on Android/Termux). Twitch thumbnails update every ~5 minutes,
+ * YouTube thumbnails are high-res snapshots of the current stream.
+ */
+async function fetchThumbnailFallback(
+  url: string
+): Promise<{ base64: string; mimeType: string } | null> {
+  const platform = detectPlatform(url)
+  let thumbnailUrl: string | null = null
+
+  if (platform === 'twitch') {
+    // Extract channel name from URL (e.g. twitch.tv/faker -> faker)
+    const match = url.match(/twitch\.tv\/([^/?#]+)/i)
+    if (!match) return null
+    const channel = match[1]
+
+    // Use Twitch Helix API to get live thumbnail
+    const clientId = process.env.TWITCH_CLIENT_ID
+    const clientSecret = process.env.TWITCH_CLIENT_SECRET
+    if (!clientId || !clientSecret) {
+      console.warn('[stream-ingestion] Twitch credentials not available for thumbnail fallback')
+      return null
+    }
+
+    try {
+      // Get app token
+      const tokenRes = await fetch('https://id.twitch.tv/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'client_credentials',
+        }),
+      })
+      if (!tokenRes.ok) return null
+      const { access_token } = await tokenRes.json()
+
+      // Get stream info with thumbnail
+      const streamRes = await fetch(
+        `https://api.twitch.tv/helix/streams?user_login=${channel}`,
+        { headers: { 'Client-ID': clientId, Authorization: `Bearer ${access_token}` } }
+      )
+      if (!streamRes.ok) return null
+      const streamData = await streamRes.json()
+      const stream = streamData.data?.[0]
+      if (!stream?.thumbnail_url) return null
+
+      // Twitch thumbnails have {width}x{height} placeholders — fill them
+      thumbnailUrl = stream.thumbnail_url
+        .replace('{width}', '1920')
+        .replace('{height}', '1080')
+    } catch (err: any) {
+      console.warn(`[stream-ingestion] Twitch thumbnail fetch failed: ${err?.message}`)
+      return null
+    }
+  } else if (platform === 'youtube') {
+    // Extract video ID from various YouTube URL formats
+    const match = url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+    if (!match) return null
+    const videoId = match[1]
+    // YouTube provides thumbnails at predictable URLs — maxresdefault is 1920x1080
+    thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+  }
+
+  if (!thumbnailUrl) return null
+
+  try {
+    console.log(`[stream-ingestion] 📸 Fetching ${platform} thumbnail (headless fallback): ${thumbnailUrl}`)
+    const res = await fetch(thumbnailUrl)
+    if (!res.ok) return null
+    const buffer = await res.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    const contentType = res.headers.get('content-type') || 'image/jpeg'
+    console.log(`[stream-ingestion] ✅ Thumbnail fetched (${Math.round(buffer.byteLength / 1024)}KB)`)
+    return { base64, mimeType: contentType }
+  } catch (err: any) {
+    console.warn(`[stream-ingestion] Thumbnail download failed: ${err?.message}`)
+    return null
+  }
+}
+
+/**
  * Captures multiple frames from a stream and returns the single best
  * frame (last captured — most likely to show the final game state).
  *
  * This is the primary entry point for the settler agent:
  *   const { base64, mimeType } = await captureSettlementFrame(vodUrl)
  *   const result = await runVisionConsensus(base64, mimeType)
+ *
+ * When Puppeteer/Chrome is not available (Android/Termux), automatically
+ * falls back to fetching the stream's live thumbnail via the platform API.
  */
 export async function captureSettlementFrame(
   url: string,
   options?: Partial<CaptureOptions>
 ): Promise<{ base64: string; mimeType: string } | null> {
+  
+  // Try Puppeteer pipeline first
   const result = await captureStreamFrames({
     url,
     frameCount: 3,
@@ -412,8 +523,8 @@ export async function captureSettlementFrame(
   })
 
   if (!result.success || result.frames.length === 0) {
-    console.error(`[stream-ingestion] No frames captured from ${url}: ${result.error}`)
-    return null
+    console.error(`[stream-ingestion] Puppeteer capture failed or no frames for ${url}. Trying thumbnail fallback...`)
+    return fetchThumbnailFallback(url)
   }
 
   // Return the last frame (most likely to show final game state / scoreboard)

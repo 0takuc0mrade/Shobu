@@ -11,7 +11,7 @@ import { PlatformClient } from '@openserv-labs/client'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { poolId, message } = body
+    const { poolId, message, chainType, stellarPoolData } = body
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -39,9 +39,14 @@ export async function POST(req: NextRequest) {
 
     const client = new PlatformClient({ apiKey })
 
+    // Build input with chain context so the analyst knows about Stellar pools
+    const webhookInput: any = { poolId: Number(poolId), message }
+    if (chainType) webhookInput.chainType = chainType
+    if (stellarPoolData) webhookInput.stellarPoolData = JSON.stringify(stellarPoolData)
+
     const result = await client.triggers.fireWebhook({
       workflowId,
-      input: { poolId: Number(poolId), message },
+      input: webhookInput,
     })
 
     // Extract the raw text from OpenServ's nested webhook response

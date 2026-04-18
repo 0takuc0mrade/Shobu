@@ -4,7 +4,7 @@ const { Keypair, rpc: SorobanRpc, TransactionBuilder, Contract, Address, nativeT
 
 const rpcUrl = "https://soroban-testnet.stellar.org:443";
 const networkPassphrase = "Test SDF Network ; September 2015";
-const escrowId = "CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M";
+const escrowId = "CAVMUYF3S54QSPSNWN5LUI3YEPRFIRPFWSULNIWBSHA4IPPPGSSCCOPB";
 
 async function main() {
   const secretKey = "SCAH56S4BKBBQILQBIXMNHYT3WJTWNEOTJPWYAUUTLNQKEECDEHNTMKK";

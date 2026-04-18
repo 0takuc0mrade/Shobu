@@ -18,6 +18,12 @@ import {
   type BettingPoolModel,
   type OddsSnapshotModel,
 } from '../shared/torii.js'
+import {
+  fetchStellarPoolById,
+  fetchStellarOpenPools,
+  fetchStellarSettledPools,
+  formatStellarPool,
+} from '../shared/soroban-indexer.js'
 import { POOL_STATUS, SETTLEMENT_MODE } from '../shared/constants.js'
 import { getMarketContext } from '../shared/market-generator.js'
 
@@ -164,8 +170,35 @@ agent.addCapability({
   inputSchema: z.object({
     poolId: z.number().int().describe('Pool ID the user is chatting about'),
     message: z.string().describe('The user\'s chat message'),
+    chainType: z.string().optional().describe('Which chain the user is connected to: starknet, stellar, or evm'),
+    stellarPoolData: z.string().optional().describe('JSON string of Stellar/Soroban pool data if the user is on Stellar'),
   }),
   async run({ args, action }) {
+    // When the user is on Stellar, fetch pool data from Soroban directly
+    // instead of relying on the client-passed JSON string
+    if (args.chainType === 'stellar') {
+      const stellarPool = await fetchStellarPoolById(args.poolId).catch(() => null)
+      const poolContext = stellarPool
+        ? formatStellarPool(stellarPool)
+        : `Soroban Pool #${args.poolId} not found.`
+
+      const answer = await this.generate({
+        prompt: `You are the Shobu Trollbox AI — a witty, knowledgeable prediction market analyst chatting with users watching a live streamed event. Be concise, engaging, and data-driven. Use emoji sparingly.
+
+User's Chain: Stellar/Soroban
+Soroban Pool Data:
+${poolContext}
+
+User says: "${args.message}"
+
+Respond naturally as a chat message (1-3 sentences max). Reference the Soroban pool data for odds and probabilities.`,
+        action,
+      })
+
+      return answer;
+    }
+
+    // Starknet / EVM path — unchanged
     const pool = await fetchPoolById(args.poolId)
     const odds = pool ? await fetchOddsSnapshot(args.poolId) : null
     const bets = pool ? await fetchBetsForPool(args.poolId) : []
@@ -188,6 +221,7 @@ agent.addCapability({
       prompt: `You are the Shobu Trollbox AI — a witty, knowledgeable prediction market analyst chatting with users watching a live streamed event. Be concise, engaging, and data-driven. Use emoji sparingly.
 
 Market Proposition: ${marketTitle || "Unknown Event"}
+User's Chain: ${args.chainType ?? 'starknet'}
 Pool Data:
 ${poolContext}
 

@@ -119,29 +119,44 @@ function MatchPageContent() {
 
         {/* Feed & Probability */}
         <section className="px-4 grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {/* Vision Consensus Feed */}
-          <div className="bg-surface-container-low p-5 relative overflow-hidden border border-transparent">
-            <div className="absolute top-0 left-0 w-1 h-full bg-primary/40"></div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-headline text-[10px] md:text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
-                <Radio className="w-3.5 h-3.5 text-primary" /> Vision Consensus Feed
-              </h3>
-              <Activity className="w-3.5 h-3.5 text-primary/40" />
+          {/* Vision Consensus Feed & Resolution Criteria */}
+          <div className="space-y-4">
+            {/* Resolution Criteria */}
+            <div className="bg-surface-container-low p-5 relative overflow-hidden border border-transparent">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-headline text-[10px] md:text-xs font-semibold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                  Market Rules
+                </h3>
+              </div>
+              <p className="text-[11px] md:text-xs text-on-surface/80 font-mono leading-relaxed">
+                {market?.resolution_criteria || 'Resolution criteria loading or not available for this legacy pool.'}
+              </p>
             </div>
-            <div className="space-y-3 font-mono text-[10px] md:text-[11px]">
-              {worldEvents.length > 0 ? (
-                worldEvents.slice(-3).map((evt, i) => (
-                  <div key={evt.id} className="flex items-start" style={{ opacity: 1 - i * 0.2 }}>
-                    <span className="text-primary/60 shrink-0 mr-3 w-16">[{new Date(evt.seenAt).toLocaleTimeString('en-GB', { hour12: false }).slice(0, 8)}]</span>
-                    <span className="text-on-surface uppercase leading-relaxed">Block #{evt.blockNumber} — Oracle consensus event</span>
+
+            {/* Oracle Feed */}
+            <div className="bg-surface-container-low p-5 relative overflow-hidden border border-transparent">
+              <div className="absolute top-0 left-0 w-1 h-full bg-primary/40"></div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-headline text-[10px] md:text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
+                  <Radio className="w-3.5 h-3.5 text-primary" /> Vision Consensus Feed
+                </h3>
+                <Activity className="w-3.5 h-3.5 text-primary/40" />
+              </div>
+              <div className="space-y-3 font-mono text-[10px] md:text-[11px]">
+                {worldEvents.length > 0 ? (
+                  worldEvents.slice(-3).map((evt, i) => (
+                    <div key={evt.id} className="flex items-start" style={{ opacity: 1 - i * 0.2 }}>
+                      <span className="text-primary/60 shrink-0 mr-3 w-16">[{new Date(evt.seenAt).toLocaleTimeString('en-GB', { hour12: false }).slice(0, 8)}]</span>
+                      <span className="text-on-surface uppercase leading-relaxed">Block #{evt.blockNumber} — Oracle consensus event</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-start opacity-70">
+                    <span className="text-primary/40 shrink-0 mr-3">[--.--]</span>
+                    <span className="text-on-surface/80 uppercase leading-relaxed">Awaiting oracle events for this market...</span>
                   </div>
-                ))
-              ) : (
-                <div className="flex items-start opacity-70">
-                  <span className="text-primary/40 shrink-0 mr-3">[--.--]</span>
-                  <span className="text-on-surface/80 uppercase leading-relaxed">Awaiting oracle events for this market...</span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 

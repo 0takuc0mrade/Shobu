@@ -95,6 +95,9 @@ const envSchema = z.object({
   RECLAIM_APP_SECRET: z.string().default(''),
   RECLAIM_PROVER_URL: z.string().url().optional().or(z.literal('')).default(''),
 
+  // Seeding
+  GHOST_SEED_AMOUNT: z.string().default('5000000'), // Default 0.5 tokens in 7 decimals for Stellar (Soroban)
+
   // Chain
   CHAIN_ID: z.string().default('0x534e5f5345504f4c4941'),
 })

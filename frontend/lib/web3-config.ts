@@ -90,6 +90,17 @@ export const web3Config = {
   egsFromBlock: Number(process.env.NEXT_PUBLIC_EGS_FROM_BLOCK ?? "0"),
   egsPollIntervalMs: Number(process.env.NEXT_PUBLIC_EGS_POLL_MS ?? "5000"),
   egsGameIdIndex: Number(process.env.NEXT_PUBLIC_EGS_GAME_ID_INDEX ?? "1"),
+
+  // Stellar Game Studio (SGS) — Game Hub indexing
+  sgsGameHubAddress:
+    process.env.NEXT_PUBLIC_SGS_GAME_HUB_ADDRESS ??
+    "CB4VZAT2U3UC6XFK3N23SKRF2NDCMP3QHJYMCHHFMZO7MRQO6DQ2EMYG",
+  sgsRpcUrl:
+    process.env.NEXT_PUBLIC_SGS_RPC_URL ??
+    "https://soroban-testnet.stellar.org",
+  sgsPollIntervalMs: Number(
+    process.env.NEXT_PUBLIC_SGS_POLL_MS ?? "10000"
+  ),
 };
 
 export function isConfiguredAddress(address?: string) {

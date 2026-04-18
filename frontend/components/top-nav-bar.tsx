@@ -33,7 +33,7 @@ export function TopNavBar() {
           <span className="absolute inset-x-0 bottom-0 h-4 bg-neon-purple/20 blur-md -z-10 block pointer-events-none" />
         </Link>
         <nav className="hidden md:flex gap-6 items-center text-[11px] tracking-widest mt-1">
-          <NavLink href="/match">Live Oracles</NavLink>
+          <NavLink href="/">Live Oracles</NavLink>
           <NavLink href="/resolved">Resolved Markets</NavLink>
           <NavLink href="/portfolio">My Portfolio</NavLink>
         </nav>

@@ -55,11 +55,23 @@ export function useMarkets() {
   }, [])
 
   /**
-   * Look up market context by match_id (e.g. "TTV_12345" or "YT_abc123").
+   * Look up market context by match_id (e.g. "TTV_12345" or "YT_abc123" or Hex Felt).
    */
   function getMarket(matchId: string | undefined | null): MarketContext | null {
     if (!matchId) return null
-    return markets[matchId] ?? null
+    
+    // Decode if it's a Cairo short string
+    let decodedMatchId = matchId;
+    if (decodedMatchId.startsWith('0x')) {
+      try {
+        const h = BigInt(decodedMatchId).toString(16);
+        decodedMatchId = (h.match(/.{1,2}/g) || []).map(b => String.fromCharCode(parseInt(b, 16))).join('');
+      } catch (err) {
+        // Fallback to original if decoding fails
+      }
+    }
+
+    return markets[decodedMatchId] ?? null
   }
 
   return { markets, loading, getMarket }

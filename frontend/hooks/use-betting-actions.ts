@@ -40,19 +40,20 @@ export function usePlaceBet() {
         if (params.chainType === "stellar") {
           // ── Stellar Path: Freighter + Soroban ──
           if (!stellarAddress) throw new Error("No Stellar wallet connected. Connect Freighter first.");
-          
+
           const { TransactionBuilder, Contract, xdr, Address, Networks, rpc } = await import("@stellar/stellar-sdk");
           const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
-          
+
           const contractId = web3Config.stellarEscrowAddress || "CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M";
-          
+
           const accountInfo = await rpcServer.getAccount(stellarAddress);
           const contract = new Contract(contractId);
-          
+
           const amountValue = parseUnits(params.amount, 7); // Soroban/Stellar tokens usually 7 decimals
 
           // ── Resolve the Stellar pool ID from the off-chain mapping ──
           const { fetchStellarPoolMap, getStellarPool } = await import("@/lib/stellar-pool-reader");
+const { nativeToScVal } = await import("@stellar/stellar-sdk");
           const poolMap = await fetchStellarPoolMap();
           const stellarPoolId = poolMap[String(params.poolId)];
           if (stellarPoolId == null) {
@@ -80,10 +81,10 @@ export function usePlaceBet() {
                 xdr.ScVal.scvU32(stellarPoolId),
                 new Address(stellarAddress).toScVal(),
                 new Address(mappedWinner).toScVal(),
-                xdr.ScVal.scvU128(new xdr.UInt128Parts({ hi: xdr.Uint64.fromString("0"), lo: xdr.Uint64.fromString(amountValue.toString()) }))
+                nativeToScVal(amountValue, { type: "u128" })
               )
             )
-            .setTimeout(30)
+            .setTimeout(300)
             .build();
 
           // Simulate first to get clear diagnostics
@@ -109,10 +110,23 @@ export function usePlaceBet() {
           const signedTx = TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
           const response = await rpcServer.sendTransaction(signedTx as any);
           if (response.status === "ERROR") {
-            const errDetail = response.errorResult ? JSON.stringify(response.errorResult, null, 2) : 'Unknown error';
+
+            let errDetail = 'Unknown error';
+            if ((response as any).errorResultXdr) {
+              try {
+                const { xdr } = await import('@stellar/stellar-sdk');
+                const result = xdr.TransactionResult.fromXDR((response as any).errorResultXdr, 'base64');
+                errDetail = result.result().switch().name;
+              } catch (e) {
+                errDetail = (response as any).errorResultXdr;
+              }
+            } else if (response.errorResult) {
+              errDetail = (response.errorResult as any).message || JSON.stringify(response.errorResult);
+            }
+
             throw new Error(`Soroban Tx Failed: ${errDetail}`);
           }
-          /** 
+          /**
            * IMPORTANT: Wait for Soroban network propagation.
            */
           let txStatus = await rpcServer.getTransaction(response.hash);
@@ -259,7 +273,7 @@ export function useClaimWinnings() {
 
           const { TransactionBuilder, Contract, xdr, Address, Networks, rpc } = await import("@stellar/stellar-sdk");
           const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
-          
+
           const contractId = web3Config.stellarEscrowAddress || "CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M";
           const contract = new Contract(contractId);
           const accountInfo = await rpcServer.getAccount(stellarAddress);
@@ -296,7 +310,7 @@ export function useClaimWinnings() {
           if (response.status === "ERROR") {
             throw new Error(`Soroban Tx Failed: ${response.errorResult}`);
           }
-          
+
           let txStatus = await rpcServer.getTransaction(response.hash);
           let attempts = 0;
           while (txStatus.status === "NOT_FOUND" && attempts < 15) {
@@ -424,4 +438,80 @@ export function useClaimWinnings() {
   );
 
   return { claim, status, error };
+}
+
+// ─── Claim Refund (Stellar) ─────────────────────────────────────────────
+export function useClaimRefund() {
+  const { stellarAddress, stellarKit } = usePrivyStatus();
+  const [status, setStatus] = useState<ExecuteStatus>("idle");
+  const [error, setError] = useState<string | undefined>(undefined);
+
+  const refund = useCallback(
+    async (params: { poolId: number }) => {
+      const { poolId } = params;
+      setStatus("submitting");
+      setError(undefined);
+
+      try {
+        if (!stellarAddress) throw new Error("No Stellar wallet connected. Connect Freighter first.");
+
+        const { TransactionBuilder, Contract, xdr, Address, Networks, rpc } = await import("@stellar/stellar-sdk");
+        const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
+
+        const contractId = web3Config.stellarEscrowAddress || "CAFUB54Q5E5BSKC2MLMI5SL4TWX32WI43I4BAKRMRPSWZVJVCZWGFT2M";
+        const contract = new Contract(contractId);
+        const accountInfo = await rpcServer.getAccount(stellarAddress);
+
+        const tx = new TransactionBuilder(accountInfo, {
+          fee: "10000",
+          networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(
+            contract.call("claim_refund",
+              xdr.ScVal.scvU32(poolId),
+              new Address(stellarAddress).toScVal() // Bettor
+            )
+          )
+          .setTimeout(30)
+          .build();
+
+        const preparedTx = await rpcServer.prepareTransaction(tx);
+
+        if (!stellarKit) throw new Error("Stellar Wallet Kit not initialized");
+        const { signedTxXdr } = await stellarKit.signTransaction(preparedTx.toXDR(), {
+          networkPassphrase: Networks.TESTNET,
+          address: stellarAddress,
+        });
+
+        if (!signedTxXdr) {
+            throw new Error("Failed to sign transaction with Wallet Kit");
+        }
+
+        const signedTx = TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
+        const response = await rpcServer.sendTransaction(signedTx as any);
+        if (response.status === "ERROR") {
+          throw new Error(`Soroban Tx Failed: ${response.errorResult}`);
+        }
+
+        let txStatus = await rpcServer.getTransaction(response.hash);
+        let attempts = 0;
+        while (txStatus.status === "NOT_FOUND" && attempts < 15) {
+          await new Promise(r => setTimeout(r, 2000));
+          txStatus = await rpcServer.getTransaction(response.hash);
+          attempts++;
+        }
+        if (txStatus.status === "FAILED") {
+          throw new Error(`Soroban Tx Failed during block execution`);
+        }
+
+        setStatus("success");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to claim refund");
+        setStatus("error");
+      }
+    },
+    [stellarAddress, stellarKit]
+  );
+
+  return { refund, status, error };
 }
