@@ -10,7 +10,7 @@ Shobu lets anyone create permissionless betting pools around on-chain game outco
 
 Shōbu runs natively on **Stellar Soroban** as a first-class deployment target alongside Starknet. The Stellar integration delivers a complete prediction market pipeline — from autonomous pool creation to settlement — with zero dependency on the Starknet indexer.
 
-> **🥇 Stellar Community Fund (WA Residency):** Check out our complete [SCF Application Draft & Milestones](docs/Shobu.md) outlining the architecture and budget for our native Stellar deployment.
+> **🥇 Stellar(WA Residency):** Check out our complete [Shobu on Stellar Application Draft & Milestones](docs/Shobu.md) outlining the architecture and budget for our native Stellar deployment.
 
 ### Soroban Escrow Contract
 
@@ -178,7 +178,7 @@ Coordinates the full pool lifecycle in a single call: scan → create → settle
 
 ## 👁️ The V2 Vision: A Multimodal Agentic Pipeline
 
-Shōbu is pioneering the concept of an **aICM (agentic Internet Capital Market)** by eliminating human intervention in market creation and settlement. 
+Shōbu is pioneering the concept of an **aICM (agentic Internet Capital Market)** by eliminating human intervention in market creation and settlement.
 
 In V1, the `Settler` agent resolves Web2 matches (like Riot Games) by pinging official APIs. In **V2**, Shōbu completely bypasses centralized, rate-limited APIs through a custom **Computer Vision Pipeline**.
 
