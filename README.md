@@ -10,6 +10,8 @@ Shobu lets anyone create permissionless betting pools around on-chain game outco
 
 Shōbu runs natively on **Stellar Soroban** as a first-class deployment target alongside Starknet. The Stellar integration delivers a complete prediction market pipeline — from autonomous pool creation to settlement — with zero dependency on the Starknet indexer.
 
+> **🥇 Stellar Community Fund (WA Residency):** Check out our complete [SCF Application Draft & Milestones](docs/Shobu.md) outlining the architecture and budget for our native Stellar deployment.
+
 ### Soroban Escrow Contract
 
 The [`shobu-escrow-soroban`](src/stellar/escrow/src/lib.rs) contract implements the full betting lifecycle in Rust:
