@@ -114,5 +114,17 @@
   "YT_bA9S5aD6N1U": {
     "market_title": "Will Tundra esports win their PGL Wallachia Season 8 Group Stage match against HEROIC?",
     "resolution_criteria": "Resolves to YES if Tundra esports wins their Group Stage Round 1 match against HEROIC in PGL Wallachia Season 8. Resolves to NO if HEROIC wins the match. Resolution will be based on the official PGL Wallachia Season 8 results. If the match is cancelled or not completed, this market will resolve 50/50."
+  },
+  "YT_26KiYPllmj0": {
+    "market_title": "Will NixyExE's stream reach 100 viewers within the next hour?",
+    "resolution_criteria": "Resolves to YES if the viewer count exceeds 100 within 1 hour from the market's creation. Resolves to NO if the stream ends or 1 hour passes without the viewer count exceeding 100."
+  },
+  "YT_AHVNxgEyJPI": {
+    "market_title": "Will the streamer gain at least 10 viewers within the next hour?",
+    "resolution_criteria": "Resolves to YES if the viewer count reaches 10 or more within 1 hour from market creation. Resolves to NO if the viewer count remains below 10 after 1 hour or if the stream ends before 1 hour."
+  },
+  "YT_NEqm46jLPpc": {
+    "market_title": "Will Thunder Devil YT's stream reach 100 viewers within the next hour?",
+    "resolution_criteria": "Resolves to YES if the stream's viewer count exceeds 100 within 60 minutes from the creation of this market. Resolves to NO if the stream ends or 60 minutes pass without reaching 100 viewers."
   }
 }

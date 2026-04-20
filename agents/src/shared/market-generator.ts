@@ -31,41 +31,56 @@ Example:
 
   let resultParsed: MarketContext | null = null
 
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
   // 1. Try Gemini first
   const geminiApiKey = process.env.GOOGLE_AI_API_KEY
   if (geminiApiKey) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: 'OBJECT',
-                properties: {
-                  market_title: { type: 'STRING' },
-                  resolution_criteria: { type: 'STRING' },
+    let retries = 3
+    let delay = 2000
+    
+    while (retries > 0) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: 'OBJECT',
+                  properties: {
+                    market_title: { type: 'STRING' },
+                    resolution_criteria: { type: 'STRING' },
+                  },
+                  required: ['market_title', 'resolution_criteria'],
                 },
-                required: ['market_title', 'resolution_criteria'],
               },
-            },
-          }),
-        }
-      )
+            }),
+          }
+        )
 
-      if (response.ok) {
-        const result = await response.json()
-        const text = result.candidates[0].content.parts[0].text.trim()
-        resultParsed = JSON.parse(text)
-      } else {
-        console.warn(`[market-generator] Gemini API error: ${response.status} ${response.statusText}`)
+        if (response.ok) {
+          const result = await response.json()
+          const text = result.candidates[0].content.parts[0].text.trim()
+          resultParsed = JSON.parse(text)
+          break
+        } else if (response.status === 429 || response.status === 503) {
+          console.warn(`[market-generator] Gemini API error: ${response.status}. Retrying in ${delay}ms...`)
+          await sleep(delay)
+          delay *= 2
+          retries--
+        } else {
+          console.warn(`[market-generator] Gemini API error: ${response.status} ${response.statusText}`)
+          break
+        }
+      } catch (err: any) {
+        console.warn(`[market-generator] Gemini network error: ${err.message}`)
+        break
       }
-    } catch (err: any) {
-      console.warn(`[market-generator] Gemini network error: ${err.message}`)
     }
   }
 
@@ -84,20 +99,36 @@ Example:
         },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
+          messages: [
+            { role: 'system', content: 'You are a betting market creator. Generate a Polymarket-style binary prediction market. You must respond with exactly and ONLY valid JSON.' },
+            { role: 'user', content: prompt }
+          ],
           response_format: { type: 'json_object' }
         }),
       })
 
       if (response.ok) {
         const result = await response.json()
-        const text = result.choices[0].message.content.trim()
+        let text = result.choices[0].message.content.trim()
+        
+        // Extract JSON from markdown if present, or find the first/last curly braces
+        const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+        if (jsonMatch) {
+          text = jsonMatch[1].trim()
+        } else {
+          const start = text.indexOf('{')
+          const end = text.lastIndexOf('}')
+          if (start !== -1 && end !== -1) {
+            text = text.slice(start, end + 1)
+          }
+        }
+
         return JSON.parse(text)
       } else {
         console.error(`[market-generator] Groq API error: ${response.status} ${await response.text()}`)
       }
     } catch (err: any) {
-      console.error(`[market-generator] Groq network error: ${err.message}`)
+      console.error(`[market-generator] Groq parsing/network error: ${err.message}`)
     }
   }
 
