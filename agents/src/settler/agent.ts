@@ -21,6 +21,28 @@ import { captureSettlementFrame } from '../shared/stream-ingestion.js'
 import streamSources from '../shared/stream-sources.json' with { type: 'json' }
 
 // -----------------------------------------------------------------------
+// Stellar / Soroban Configuration
+// -----------------------------------------------------------------------
+
+import { StellarAgentAdapter } from '../shared/stellar-adapter.js'
+import { fetchStellarOpenPools } from '../shared/soroban-indexer.js'
+
+const stellarSecret = process.env.STELLAR_AGENT_SECRET_KEY
+if (!stellarSecret) {
+  console.error("FATAL: STELLAR_AGENT_SECRET_KEY is not defined in the environment. Enforcing strict environment variables.");
+  process.exit(1);
+}
+const stellarAdapter = new StellarAgentAdapter(stellarSecret);
+
+const getStellarConfig = () => ({
+  rpcUrl: process.env.STELLAR_RPC_URL || "https://soroban-testnet.stellar.org",
+  networkPassphrase: process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015",
+  contractId: process.env.STELLAR_ESCROW_CONTRACT_ID || process.env.NEXT_PUBLIC_STELLAR_ESCROW_ADDRESS || "CAVMUYF3S54QSPSNWN5LUI3YEPRFIRPFWSULNIWBSHA4IPPPGSSCCOPB"
+});
+
+const stellarCooldown = new SettlementCooldown(10 * 60 * 1000);
+
+// -----------------------------------------------------------------------
 // Stream URL resolution for Vision AI pools
 // -----------------------------------------------------------------------
 
@@ -312,6 +334,93 @@ agent.addCapability({
       return `Vision consensus passed but on-chain settlement failed for pool #${poolId}: ${err?.message ?? err}`
     }
   },
+})
+
+// --- Capability: settle_stellar_pool ---
+agent.addCapability({
+  name: 'settle_stellar_pool',
+  description: 'Explicitly settle a Stellar/Soroban prediction market by declaring the winner. Only functional if the game has completed.',
+  inputSchema: z.object({
+    poolId: z.number().int().describe('Soroban Pool ID to settle'),
+    winnerAddress: z.string().describe('The Stellar address of the winning player')
+  }),
+  async run({ args }) {
+    try {
+      const config = getStellarConfig()
+      const tx = await stellarAdapter.settlePool(config, config.contractId, args.poolId, args.winnerAddress)
+      return `Successfully settled Soroban pool #${args.poolId} for winner ${args.winnerAddress}. Hash: ${tx.hash}`
+    } catch (err: any) {
+      return `Failed to settle Soroban pool #${args.poolId}: ${err?.message ?? err}`
+    }
+  }
+})
+
+// --- Capability: cancel_stellar_pool ---
+agent.addCapability({
+  name: 'cancel_stellar_pool',
+  description: 'Explicitly cancel a Stellar/Soroban prediction market, triggering refunds.',
+  inputSchema: z.object({
+    poolId: z.number().int().describe('Soroban Pool ID to cancel'),
+  }),
+  async run({ args }) {
+    try {
+      const config = getStellarConfig()
+      const tx = await stellarAdapter.cancelPool(config, config.contractId, args.poolId)
+      return `Successfully cancelled Soroban pool #${args.poolId}. Hash: ${tx.hash}`
+    } catch (err: any) {
+      return `Failed to cancel Soroban pool #${args.poolId}: ${err?.message ?? err}`
+    }
+  }
+})
+
+// --- Capability: auto_settle_stellar ---
+agent.addCapability({
+  name: 'auto_settle_stellar',
+  description: 'Scan all open Soroban pools from the indexer and automatically cancel them if the deadline has passed with one-sided liquidity.',
+  inputSchema: z.object({}),
+  async run() {
+    try {
+      const pools = await fetchStellarOpenPools()
+      if (pools.length === 0) return 'No open Soroban pools to settle.'
+
+      const candidates = pools.filter(p => BigInt(p.total_pot || "0") > 0n)
+      if (candidates.length === 0) return `Found ${pools.length} open Soroban pools but none have bets.`
+
+      const results: string[] = []
+      let skipped = 0
+      const config = getStellarConfig()
+
+      for (const pool of candidates) {
+        const poolId = pool.pool_id
+        if (stellarCooldown.isOnCooldown(poolId)) {
+          skipped++
+          continue
+        }
+
+        const isPastDeadline = (Date.now() / 1000) > pool.deadline
+        const isOneSided = BigInt(pool.total_on_p1 || "0") === 0n || BigInt(pool.total_on_p2 || "0") === 0n
+
+        if (isPastDeadline && isOneSided) {
+          try {
+            const tx = await stellarAdapter.cancelPool(config, config.contractId, poolId)
+            stellarCooldown.clear(poolId)
+            results.push(`Cancelled Soroban pool #${poolId} (one-sided at deadline) — hash: ${tx.hash}`)
+          } catch (err: any) {
+            stellarCooldown.markFailed(poolId)
+            results.push(`Soroban pool #${poolId} cancel error: ${err?.message ?? String(err)}`)
+          }
+        }
+      }
+
+      if (results.length === 0) {
+        return `Checked ${candidates.length} Soroban pools — none ready for auto-cancellation yet.` + (skipped > 0 ? ` (${skipped} on cooldown)` : '')
+      }
+
+      return results.join('\n')
+    } catch (err: any) {
+      return `Failed to run Soroban auto-settle check: ${err?.message ?? String(err)}`
+    }
+  }
 })
 
 // --- Capability: auto_settle ---
@@ -695,6 +804,59 @@ Example:
   }
 }
 
+async function runStellarSettleCycle() {
+  console.log(`[settler] ⏱ Starting Stellar settle cycle at ${new Date().toISOString()}`)
+  try {
+    const pools = await fetchStellarOpenPools()
+
+    if (pools.length === 0) {
+      console.log('[settler] No open Soroban pools to settle.')
+      return
+    }
+
+    const candidates = pools.filter((p) => BigInt(p.total_pot || "0") > 0n)
+    if (candidates.length === 0) {
+      console.log(`[settler] Found ${pools.length} open Soroban pools but none have bets.`)
+      return
+    }
+
+    let settled = 0
+    let skipped = 0
+    const config = getStellarConfig()
+
+    for (const pool of candidates) {
+      const poolId = pool.pool_id
+      if (stellarCooldown.isOnCooldown(poolId)) {
+        skipped++
+        continue
+      }
+
+      const isPastDeadline = (Date.now() / 1000) > pool.deadline
+      const isOneSided = BigInt(pool.total_on_p1 || "0") === 0n || BigInt(pool.total_on_p2 || "0") === 0n
+
+      if (isPastDeadline && isOneSided) {
+        try {
+          const tx = await stellarAdapter.cancelPool(config, config.contractId, poolId)
+          stellarCooldown.clear(poolId)
+          settled++
+          console.log(`[settler] ✅ Cancelled Soroban pool #${poolId} (one-sided liquidity at deadline) — hash: ${tx.hash}`)
+        } catch (err: any) {
+          stellarCooldown.markFailed(poolId)
+        }
+      }
+    }
+
+    const parts = [
+      `checked ${candidates.length} Soroban pools`,
+      settled > 0 ? `cancelled ${settled}` : null,
+      skipped > 0 ? `${skipped} on cooldown` : null,
+    ].filter(Boolean)
+    console.log(`[settler] 🏁 ${parts.join(', ')}`)
+  } catch (err: any) {
+    console.error(`[settler] ❌ Stellar cycle error: ${err?.message ?? err}`)
+  }
+}
+
 async function main() {
   const config = loadConfig()
 
@@ -709,11 +871,15 @@ async function main() {
 
   // Run first cycle immediately
   await runSettleCycle()
+  await runStellarSettleCycle()
 
   // Then run on interval
   setInterval(() => {
     runSettleCycle().catch((err) =>
       console.error('[settler] interval error:', err?.message ?? err)
+    )
+    runStellarSettleCycle().catch((err) =>
+      console.error('[settler] stellar interval error:', err?.message ?? err)
     )
   }, SETTLE_INTERVAL_MS)
 }
