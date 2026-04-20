@@ -4,9 +4,8 @@ import './globals.css'
 import { AppProviders } from './providers'
 
 export const metadata: Metadata = {
-  title: 'Shōbu - Web3 Gaming & Betting Platform',
-  description: 'High-tech Web3 gaming dashboard for Starknet betting platform. Spectate live matches and place bets with dynamic odds.',
-  generator: 'v0.app',
+  title: 'Shōbu',
+  description: 'Autonomous prediction market protocol for on-chain games — built natively on Stellar/Soroban and Starknet.',
   icons: {
     icon: [
       {
