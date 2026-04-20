@@ -1,8 +1,8 @@
-# Shobu
+# Shōbu
 
-> Decentralized betting and escrow protocol for on-chain games, built with [Dojo](https://dojoengine.org) on Starknet.
+> Autonomous prediction market protocol for on-chain games — built natively on [Stellar/Soroban](https://soroban.stellar.org) and [Starknet/Dojo](https://dojoengine.org).
 
-Shobu lets anyone create permissionless betting pools around on-chain game outcomes. Players place bets on who will win a game, and the protocol settles automatically once the game finishes — either via direct game-world queries or EGS (denshokan session token) verification.
+Shōbu lets anyone create permissionless betting pools around on-chain game outcomes. AI agents autonomously create pools, seed liquidity, settle finished games, and cancel unresolvable markets — with zero human intervention. The protocol runs natively on Stellar (Soroban smart contracts, Freighter wallet, Machine Payments Protocol) and Starknet (Cairo/Dojo, Cartridge Controller).
 
 ---
 
@@ -270,7 +270,18 @@ The protocol is deployed on **Starknet Sepolia**:
 
 ## Roadmap
 
-Shobu is evolving into a fully autonomous, cross-chain betting infrastructure. Our roadmap focuses on deep integration with the OpenServ ecosystem:
+Shōbu is evolving into a fully autonomous, cross-chain betting infrastructure. The roadmap is anchored by a **Stellar-first mainnet deployment**, followed by cross-chain expansion and ecosystem growth.
+
+### Phase 0: Stellar Mainnet & Production Hardening ⬅️ *Current Focus*
+- **Security Audit**: Independent review of `shobu-escrow-soroban` — payout math verification, access control audit, emergency pause mechanism.
+- **Mainnet Deployment**: Deploy hardened Soroban escrow contract to Stellar Mainnet with documented run-book.
+- **SEP-8 Regulated Assets**: Migrate from testnet XLM to USDC (via Circle's Stellar anchor) with issuer-approved KYC enforcement on each `place_bet` transfer.
+- **Geoblocking**: Vercel Edge Functions blocking US, UK, and OFAC-sanctioned jurisdictions.
+- **Stellar Game Studio Integration**: Auto-discover and create pools for at least 2 active SGS Game Hub games on mainnet.
+- **Adoption Targets**:
+  - 10 unique bettors on Stellar Mainnet within 60 days of launch.
+  - 5 pools settled autonomously by the AI agent on mainnet.
+  - Public agent activity dashboard (pools created, settled, cancelled).
 
 ### Phase 1: Foundation & Observability
 - **ERC-8004 Identity**: Register all agents on the Base blockchain for on-chain verifiability and discovery.
@@ -300,6 +311,16 @@ Shobu is evolving into a fully autonomous, cross-chain betting infrastructure. O
 ### Phase 4: Expansion & Optimization
 - **Base Protocol Token**: Launch the SHOBU token on Base with Aerodrome concentrated liquidity.
 - **Runless AI Optimization**: Pivot to platform-native runless capabilities to minimize agent overhead and cost.
+
+---
+
+## Maintenance Commitment
+
+**Active maintenance (Months 1–4):** Weekly agent uptime monitoring, contract state verification, and immediate response to security issues.
+
+**Post-launch maintenance (Months 5–10):** 6-month commitment covering Soroban persistent storage TTL renewals, `soroban-sdk` / `@stellar/stellar-sdk` dependency updates, critical bug fixes, and monthly status updates posted to the Stellar community.
+
+**Long-term sustainability:** The 2.5% protocol fee on settled pools creates a self-sustaining revenue model. All contract code is open-source (MIT) — the admin key can transfer contract ownership to a new maintainer if needed.
 
 ---
 
