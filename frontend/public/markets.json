@@ -124,8 +124,8 @@
     "resolution_criteria": "Resolves to YES if the stream's viewer count reaches 10 or more at any point during the broadcast. Resolves to NO if the stream ends without reaching 10 viewers."
   },
   "YT_NEqm46jLPpc": {
-    "market_title": "Will Thunder Devil YT's stream reach 100 viewers within the next hour?",
-    "resolution_criteria": "Resolves to YES if the stream's viewer count exceeds 100 within 60 minutes from the creation of this market. Resolves to NO if the stream ends or 60 minutes pass without reaching 100 viewers."
+    "market_title": "Will Thunder Devil YT reach 100 viewers during this live stream?",
+    "resolution_criteria": "Resolves to YES if the viewer count reaches 100 or more during the stream. Resolves to NO if the stream ends before reaching 100 viewers."
   },
   "YT_pow_KXqsyik": {
     "market_title": "Will the stream 'Arora Ji Is Live' reach at least 10 viewers within the next hour?",
@@ -142,5 +142,9 @@
   "YT_wZkOKlB1tCY": {
     "market_title": "Will the stream 'СТРИМ ДОТА 2 / DOTA 2 STREAM / ЛУЧШИЙ НА ЦЕНТРЕ' reach at least 100 viewers?",
     "resolution_criteria": "Resolves to YES if the stream's viewer count reaches or exceeds 100 during the live broadcast. Resolves to NO if the stream ends before reaching 100 viewers."
+  },
+  "YT_1qdlju2KEk8": {
+    "market_title": "Will the stream 'ДОТА 2 СТРИМ. DOTA 2 STREAM. СТРИМЕР ЧОРТ ИГРАЕТ В ДОТУ 2' reach 10 viewers within the next hour?",
+    "resolution_criteria": "Resolves to YES if the viewer count reaches 10 or more within 1 hour from market creation. Resolves to NO if the stream ends or 1 hour passes without reaching 10 viewers."
   }
 }
